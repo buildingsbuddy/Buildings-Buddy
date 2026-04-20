@@ -1,0 +1,194 @@
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CheckCircle2, XCircle, Zap, Clock, AlertCircle, Crown } from 'lucide-react';
+import { useSubscription } from '@/lib/subscriptionContext';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+
+const plans = [
+  {
+    id: 'diy',
+    name: 'DIY Plan',
+    description: 'Perfect for individual users and DIY projects',
+    monthlyPrice: 19,
+    yearlyPrice: 190,
+    features: [
+      { text: 'All 11 calculators', active: true },
+      { text: 'Unlimited calculations', active: true },
+      { text: 'Save up to 20 projects', active: true },
+      { text: 'Export results to PDF', active: true },
+      { text: 'UK Building Regs references', active: true },
+      { text: 'Email support', active: true },
+      { text: 'Multi-user access', active: false },
+    ],
+  },
+  {
+    id: 'company',
+    name: 'Company Plan',
+    description: 'For small companies and professional tradespeople',
+    monthlyPrice: 22,
+    yearlyPrice: 224,
+    popular: true,
+    features: [
+      { text: 'All 11 calculators', active: true },
+      { text: 'Unlimited calculations', active: true },
+      { text: 'Unlimited projects', active: true },
+      { text: 'Export results to PDF', active: true },
+      { text: 'UK Building Regs references', active: true },
+      { text: 'Priority support', active: true },
+      { text: 'Multi-user access (up to 5 users)', active: true },
+    ],
+  },
+];
+
+export default function Billing() {
+  const sub = useSubscription();
+  const [cycle, setCycle] = useState('monthly');
+  const [processing, setProcessing] = useState(false);
+
+  const handleStartTrial = async (planId) => {
+    setProcessing(true);
+    await sub.startTrial(planId);
+    setProcessing(false);
+    toast.success('Your 5-day free trial has started!');
+  };
+
+  const handleSubscribe = async (planId) => {
+    setProcessing(true);
+    await sub.activateSubscription(planId, cycle);
+    setProcessing(false);
+    toast.success(`Subscribed to ${planId.toUpperCase()} plan!`);
+  };
+
+  const handleCancel = async () => {
+    setProcessing(true);
+    await sub.cancelSubscription();
+    setProcessing(false);
+    toast.success('Subscription cancelled.');
+  };
+
+  const statusConfig = {
+    trial: { color: 'bg-accent/10 text-accent', icon: Clock, label: `Free Trial — ${sub.trialDaysLeft} days left` },
+    active: { color: 'bg-green-50 text-green-700', icon: Zap, label: `Active — ${sub.plan?.toUpperCase()} ${sub.billingCycle}` },
+    no_subscription: { color: 'bg-muted text-muted-foreground', icon: AlertCircle, label: 'No Active Subscription' },
+    expired_trial: { color: 'bg-destructive/10 text-destructive', icon: AlertCircle, label: 'Trial Expired' },
+    inactive: { color: 'bg-destructive/10 text-destructive', icon: AlertCircle, label: 'Subscription Inactive' },
+  };
+
+  const sc = statusConfig[sub.status] || statusConfig.no_subscription;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-heading text-2xl md:text-3xl font-bold">Billing & Subscription</h1>
+        <p className="text-muted-foreground mt-1">Manage your plan and billing details.</p>
+      </div>
+
+      {/* Current status */}
+      <Card>
+        <CardContent className="p-5 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${sc.color}`}>
+              <sc.icon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-heading font-semibold">{sc.label}</p>
+              {sub.status === 'trial' && sub.trialEndDate && (
+                <p className="text-xs text-muted-foreground">Expires {new Date(sub.trialEndDate).toLocaleDateString()}</p>
+              )}
+            </div>
+          </div>
+          {sub.status === 'active' && (
+            <Button variant="outline" size="sm" onClick={handleCancel} disabled={processing}>
+              Cancel Subscription
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Plans */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-heading text-xl font-semibold">Choose Your Plan</h2>
+          <Tabs value={cycle} onValueChange={setCycle}>
+            <TabsList>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+              <TabsTrigger value="yearly">
+                Yearly <Badge className="ml-2 bg-accent/10 text-accent text-xs border-0">Save</Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {plans.map((plan) => {
+            const price = cycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+            const isCurrentPlan = sub.plan === plan.id && (sub.status === 'active' || sub.status === 'trial');
+
+            return (
+              <motion.div key={plan.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className={`relative overflow-hidden ${plan.popular ? 'border-accent shadow-lg' : ''}`}>
+                  {plan.popular && (
+                    <div className="absolute top-0 right-0 px-3 py-1 bg-accent text-accent-foreground text-xs font-semibold rounded-bl-lg flex items-center gap-1">
+                      <Crown className="w-3 h-3" /> Most Popular
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle className="font-heading">
+                      <span className="text-xl">{plan.name}</span>
+                      <p className="text-sm font-normal text-muted-foreground mt-1">{plan.description}</p>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-heading font-bold">£{price}</span>
+                      <span className="text-muted-foreground">/{cycle === 'monthly' ? 'mo' : 'yr'}</span>
+                    </div>
+
+                    <ul className="space-y-3">
+                      {plan.features.map((f, i) => (
+                        <li key={i} className={`flex items-center gap-2 text-sm ${!f.active ? 'text-muted-foreground' : ''}`}>
+                          {f.active
+                            ? <CheckCircle2 className="w-4 h-4 text-accent shrink-0" />
+                            : <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                          }
+                          {f.text}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {isCurrentPlan ? (
+                      <Button disabled className="w-full" variant="outline">
+                        Current Plan
+                      </Button>
+                    ) : sub.status === 'no_subscription' ? (
+                      <Button
+                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
+                        onClick={() => handleStartTrial(plan.id)}
+                        disabled={processing}
+                      >
+                        <Zap className="w-4 h-4 mr-2" /> Start 5-Day Free Trial
+                      </Button>
+                    ) : (
+                      <Button
+                        className={`w-full font-semibold ${plan.popular ? 'bg-accent text-accent-foreground hover:bg-accent/90' : ''}`}
+                        variant={plan.popular ? 'default' : 'outline'}
+                        onClick={() => handleSubscribe(plan.id, cycle)}
+                        disabled={processing}
+                      >
+                        {sub.status === 'trial' ? 'Upgrade Now' : 'Subscribe'}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
