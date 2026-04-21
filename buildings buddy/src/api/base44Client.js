@@ -1,14 +1,23 @@
-import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
+// Temporary replacement for Base44 client
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
+export const base44 = {
+  async get() {
+    console.log("GET request (mocked)");
+    return [];
+  },
 
-//Create a client with authentication required
-export const base44 = createClient({
-  appId,
-  token,
-  functionsVersion,
-  serverUrl: '',
-  requiresAuth: false,
-  appBaseUrl
-});
+  async post(data) {
+    console.log("POST request (mocked):", data);
+    return data;
+  },
+
+  async put(id, data) {
+    console.log("PUT request (mocked):", id, data);
+    return data;
+  },
+
+  async delete(id) {
+    console.log("DELETE request (mocked):", id);
+    return true;
+  }
+};
