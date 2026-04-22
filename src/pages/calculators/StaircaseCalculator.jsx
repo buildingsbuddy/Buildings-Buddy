@@ -2,41 +2,89 @@ import React, { useState } from 'react';
 import { MoveUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateStaircase } from '@/lib/calculatorEngine';
 
 export default function StaircaseCalculator() {
-  const [inputs, setInputs] = useState({ totalRise: '', width: '', material: 'timber' });
+  const [inputs, setInputs] = useState({
+    totalRise: '',
+    width: '',
+    material: 'timber',
+  });
+
+  const handleCalculate = () => {
+    if (!inputs.totalRise || !inputs.width) return null;
+
+    const totalRise = parseFloat(inputs.totalRise) / 1000; // mm -> m
+    const width = parseFloat(inputs.width);
+
+    if (Number.isNaN(totalRise) || Number.isNaN(width)) {
+      return null;
+    }
+
+    return calculateStaircase({
+      totalRise,
+      width,
+      material: inputs.material,
+    });
+  };
 
   return (
     <CalculatorWrapper
       title="Staircase Calculator"
       icon={MoveUp}
       calcType="staircase"
-      onCalculate={() => {
-        if (!inputs.totalRise || !inputs.width) return null;
-        return calculateStaircase({
-          totalRise: parseFloat(inputs.totalRise) / 1000, // mm → m
-          width: parseFloat(inputs.width),
-          material: inputs.material,
-        });
-      }}
+      onCalculate={handleCalculate}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Total Rise — floor to floor (mm)</Label>
-          <Input type="number" min="0" placeholder="e.g. 2600" value={inputs.totalRise}
-            onChange={e => setInputs(p => ({ ...p, totalRise: e.target.value }))} />
+          <Label htmlFor="staircase-rise">Total Rise — floor to floor (mm)</Label>
+          <Input
+            id="staircase-rise"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 2600"
+            value={inputs.totalRise}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, totalRise: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
-          <Label>Staircase Width (m)</Label>
-          <Input type="number" min="0" placeholder="e.g. 0.9" value={inputs.width}
-            onChange={e => setInputs(p => ({ ...p, width: e.target.value }))} />
+          <Label htmlFor="staircase-width">Staircase Width (m)</Label>
+          <Input
+            id="staircase-width"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 0.9"
+            value={inputs.width}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, width: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
           <Label>Material</Label>
-          <Select value={inputs.material} onValueChange={v => setInputs(p => ({ ...p, material: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={inputs.material}
+            onValueChange={(value) =>
+              setInputs((prev) => ({ ...prev, material: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select material" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="timber">Softwood Timber</SelectItem>
               <SelectItem value="oak">Solid Oak</SelectItem>

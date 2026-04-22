@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { Landmark } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateWallConstruction } from '@/lib/calculatorEngine';
 
@@ -25,63 +32,129 @@ const BOND_OPTIONS = {
 
 export default function WallCalculator() {
   const [inputs, setInputs] = useState({
-    length: '', height: '', thickness: 'single',
-    materialType: 'block_standard', bond: 'Stretcher Bond',
+    length: '',
+    height: '',
+    thickness: 'single',
+    materialType: 'block_standard',
+    bond: 'Stretcher Bond',
   });
 
   const showBond = inputs.materialType.startsWith('brick');
+
+  const handleCalculate = () => {
+    if (!inputs.length || !inputs.height) return null;
+
+    const length = parseFloat(inputs.length);
+    const height = parseFloat(inputs.height);
+
+    if (Number.isNaN(length) || Number.isNaN(height)) {
+      return null;
+    }
+
+    return calculateWallConstruction({
+      length,
+      height,
+      materialType: inputs.materialType,
+      thickness: inputs.thickness,
+      bond: inputs.bond,
+    });
+  };
 
   return (
     <CalculatorWrapper
       title="Wall Construction Calculator"
       icon={Landmark}
       calcType="wall_construction"
-      onCalculate={() => {
-        if (!inputs.length || !inputs.height) return null;
-        return calculateWallConstruction({
-          length: parseFloat(inputs.length),
-          height: parseFloat(inputs.height),
-          materialType: inputs.materialType,
-          thickness: inputs.thickness,
-          bond: inputs.bond,
-        });
-      }}
+      onCalculate={handleCalculate}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Wall Length (m)</Label>
-          <Input type="number" min="0" placeholder="e.g. 6.0" value={inputs.length}
-            onChange={e => setInputs(p => ({ ...p, length: e.target.value }))} />
+          <Label htmlFor="wall-length">Wall Length (m)</Label>
+          <Input
+            id="wall-length"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 6.0"
+            value={inputs.length}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, length: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
-          <Label>Wall Height (m)</Label>
-          <Input type="number" min="0" placeholder="e.g. 2.4" value={inputs.height}
-            onChange={e => setInputs(p => ({ ...p, height: e.target.value }))} />
+          <Label htmlFor="wall-height">Wall Height (m)</Label>
+          <Input
+            id="wall-height"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 2.4"
+            value={inputs.height}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, height: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
           <Label>Material Type</Label>
-          <Select value={inputs.materialType} onValueChange={v => setInputs(p => ({ ...p, materialType: v, bond: 'Stretcher Bond' }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={inputs.materialType}
+            onValueChange={(value) =>
+              setInputs((prev) => ({
+                ...prev,
+                materialType: value,
+                bond: 'Stretcher Bond',
+              }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select material type" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="block_standard" disabled className="font-semibold text-muted-foreground">── Concrete Blocks ──</SelectItem>
-              {MATERIAL_OPTIONS.filter(o => o.value.startsWith('block')).map(o => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              <SelectItem value="block_heading" disabled>
+                ── Concrete Blocks ──
+              </SelectItem>
+              {MATERIAL_OPTIONS.filter((option) => option.value.startsWith('block')).map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
               ))}
-              <SelectItem value="brick_sep" disabled className="font-semibold text-muted-foreground">── Bricks ──</SelectItem>
-              {MATERIAL_OPTIONS.filter(o => o.value.startsWith('brick')).map(o => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+
+              <SelectItem value="brick_heading" disabled>
+                ── Bricks ──
+              </SelectItem>
+              {MATERIAL_OPTIONS.filter((option) => option.value.startsWith('brick')).map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
               ))}
-              <SelectItem value="stone_sep" disabled className="font-semibold text-muted-foreground">── Stone ──</SelectItem>
-              {MATERIAL_OPTIONS.filter(o => o.value.startsWith('stone')).map(o => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+
+              <SelectItem value="stone_heading" disabled>
+                ── Stone ──
+              </SelectItem>
+              {MATERIAL_OPTIONS.filter((option) => option.value.startsWith('stone')).map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
           <Label>Wall Construction</Label>
-          <Select value={inputs.thickness} onValueChange={v => setInputs(p => ({ ...p, thickness: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={inputs.thickness}
+            onValueChange={(value) =>
+              setInputs((prev) => ({ ...prev, thickness: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select wall construction" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="single">Single Skin / Leaf</SelectItem>
               <SelectItem value="cavity">Cavity Wall (two leaves)</SelectItem>
@@ -89,14 +162,24 @@ export default function WallCalculator() {
             </SelectContent>
           </Select>
         </div>
+
         {showBond && BOND_OPTIONS[inputs.materialType] && (
           <div className="space-y-2">
             <Label>Brick Bond Pattern</Label>
-            <Select value={inputs.bond} onValueChange={v => setInputs(p => ({ ...p, bond: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={inputs.bond}
+              onValueChange={(value) =>
+                setInputs((prev) => ({ ...prev, bond: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select bond pattern" />
+              </SelectTrigger>
               <SelectContent>
-                {BOND_OPTIONS[inputs.materialType].map(b => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                {BOND_OPTIONS[inputs.materialType].map((bond) => (
+                  <SelectItem key={bond} value={bond}>
+                    {bond}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

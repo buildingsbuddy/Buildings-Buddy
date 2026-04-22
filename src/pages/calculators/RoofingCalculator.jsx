@@ -2,39 +2,96 @@ import React, { useState } from 'react';
 import { Home } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateRoofing } from '@/lib/calculatorEngine';
 
 export default function RoofingCalculator() {
-  const [inputs, setInputs] = useState({ length: '', width: '', pitch: '30', materialType: 'concrete' });
+  const [inputs, setInputs] = useState({
+    length: '',
+    width: '',
+    pitch: '30',
+    materialType: 'concrete',
+  });
+
+  const handleCalculate = () => {
+    if (!inputs.length || !inputs.width) return null;
+
+    const length = parseFloat(inputs.length);
+    const width = parseFloat(inputs.width);
+    const pitch = parseFloat(inputs.pitch);
+
+    if (
+      Number.isNaN(length) ||
+      Number.isNaN(width) ||
+      Number.isNaN(pitch)
+    ) {
+      return null;
+    }
+
+    return calculateRoofing({
+      length,
+      width,
+      pitch,
+      materialType: inputs.materialType,
+    });
+  };
 
   return (
     <CalculatorWrapper
       title="Pitched Roof Calculator"
       icon={Home}
-      onCalculate={() => {
-        if (!inputs.length || !inputs.width) return null;
-        return calculateRoofing({
-          length: parseFloat(inputs.length),
-          width: parseFloat(inputs.width),
-          pitch: parseFloat(inputs.pitch),
-          materialType: inputs.materialType,
-        });
-      }}
+      calcType="roofing"
+      onCalculate={handleCalculate}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Roof Length (m)</Label>
-          <Input type="number" placeholder="e.g. 10.0" value={inputs.length} onChange={e => setInputs(p => ({ ...p, length: e.target.value }))} />
+          <Label htmlFor="roofing-length">Roof Length (m)</Label>
+          <Input
+            id="roofing-length"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 10.0"
+            value={inputs.length}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, length: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
-          <Label>Building Width (m)</Label>
-          <Input type="number" placeholder="e.g. 7.0" value={inputs.width} onChange={e => setInputs(p => ({ ...p, width: e.target.value }))} />
+          <Label htmlFor="roofing-width">Building Width (m)</Label>
+          <Input
+            id="roofing-width"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="e.g. 7.0"
+            value={inputs.width}
+            onChange={(e) =>
+              setInputs((prev) => ({ ...prev, width: e.target.value }))
+            }
+          />
         </div>
+
         <div className="space-y-2">
           <Label>Roof Pitch (degrees)</Label>
-          <Select value={inputs.pitch} onValueChange={v => setInputs(p => ({ ...p, pitch: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={inputs.pitch}
+            onValueChange={(value) =>
+              setInputs((prev) => ({ ...prev, pitch: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select roof pitch" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="15">15°</SelectItem>
               <SelectItem value="22.5">22.5°</SelectItem>
@@ -45,10 +102,18 @@ export default function RoofingCalculator() {
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
           <Label>Roofing Material</Label>
-          <Select value={inputs.materialType} onValueChange={v => setInputs(p => ({ ...p, materialType: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={inputs.materialType}
+            onValueChange={(value) =>
+              setInputs((prev) => ({ ...prev, materialType: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select roofing material" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="concrete">Concrete Tiles</SelectItem>
               <SelectItem value="clay">Clay Tiles</SelectItem>
