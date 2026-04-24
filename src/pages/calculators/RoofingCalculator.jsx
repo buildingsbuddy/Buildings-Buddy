@@ -1,54 +1,46 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Home } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateRoofing } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function RoofingCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     width: '',
     pitch: '30',
     materialType: 'concrete',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.width) return null;
-
-    const length = parseFloat(inputs.length);
-    const width = parseFloat(inputs.width);
-    const pitch = parseFloat(inputs.pitch);
-
-    if (
-      Number.isNaN(length) ||
-      Number.isNaN(width) ||
-      Number.isNaN(pitch)
-    ) {
-      return null;
-    }
-
-    return calculateRoofing({
-      length,
-      width,
-      pitch,
-      materialType: inputs.materialType,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Pitched Roof Calculator"
       icon={Home}
       calcType="roofing"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length || !inputs.width) return null;
+
+        return calculateRoofing({
+          length: parseFloat(inputs.length),
+          width: parseFloat(inputs.width),
+          pitch: parseFloat(inputs.pitch),
+          materialType: inputs.materialType,
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -56,13 +48,9 @@ export default function RoofingCalculator() {
           <Input
             id="roofing-length"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 10.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -71,13 +59,9 @@ export default function RoofingCalculator() {
           <Input
             id="roofing-width"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 7.0"
             value={inputs.width}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, width: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, width: e.target.value }))}
           />
         </div>
 
@@ -85,12 +69,10 @@ export default function RoofingCalculator() {
           <Label>Roof Pitch (degrees)</Label>
           <Select
             value={inputs.pitch}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, pitch: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, pitch: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select roof pitch" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="15">15°</SelectItem>
@@ -107,12 +89,10 @@ export default function RoofingCalculator() {
           <Label>Roofing Material</Label>
           <Select
             value={inputs.materialType}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, materialType: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, materialType: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select roofing material" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="concrete">Concrete Tiles</SelectItem>

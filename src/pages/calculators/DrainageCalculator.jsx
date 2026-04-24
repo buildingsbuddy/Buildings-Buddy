@@ -1,52 +1,44 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Waves } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateDrainage } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function DrainageCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     pipeDiameter: '110',
     gradient: '1',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length) return null;
-
-    const length = parseFloat(inputs.length);
-    const pipeDiameter = parseInt(inputs.pipeDiameter, 10);
-    const gradient = parseFloat(inputs.gradient);
-
-    if (
-      Number.isNaN(length) ||
-      Number.isNaN(pipeDiameter) ||
-      Number.isNaN(gradient)
-    ) {
-      return null;
-    }
-
-    return calculateDrainage({
-      length,
-      pipeDiameter,
-      gradient,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Drainage Calculator"
       icon={Waves}
       calcType="drainage"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length) return null;
+
+        return calculateDrainage({
+          length: parseFloat(inputs.length),
+          pipeDiameter: parseInt(inputs.pipeDiameter),
+          gradient: parseFloat(inputs.gradient),
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -54,13 +46,9 @@ export default function DrainageCalculator() {
           <Input
             id="drainage-length"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 15.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -68,12 +56,10 @@ export default function DrainageCalculator() {
           <Label>Pipe Diameter</Label>
           <Select
             value={inputs.pipeDiameter}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, pipeDiameter: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, pipeDiameter: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select pipe diameter" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="100">100mm</SelectItem>
@@ -88,12 +74,10 @@ export default function DrainageCalculator() {
           <Label>Gradient (%)</Label>
           <Select
             value={inputs.gradient}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, gradient: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, gradient: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select gradient" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0.83">1:120 (0.83% - min for 100mm)</SelectItem>

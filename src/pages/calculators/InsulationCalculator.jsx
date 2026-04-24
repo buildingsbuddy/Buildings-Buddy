@@ -1,49 +1,46 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Thermometer } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateInsulation } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function InsulationCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     width: '',
     area_type: 'wall',
     insType: 'mineral_wool',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.width) return null;
-
-    const length = parseFloat(inputs.length);
-    const width = parseFloat(inputs.width);
-
-    if (Number.isNaN(length) || Number.isNaN(width)) {
-      return null;
-    }
-
-    return calculateInsulation({
-      length,
-      width,
-      areaType: inputs.area_type,
-      insType: inputs.insType,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Insulation Calculator"
       icon={Thermometer}
       calcType="insulation"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length || !inputs.width) return null;
+
+        return calculateInsulation({
+          length: parseFloat(inputs.length),
+          width: parseFloat(inputs.width),
+          areaType: inputs.area_type,
+          insType: inputs.insType,
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -52,12 +49,9 @@ export default function InsulationCalculator() {
             id="insulation-length"
             type="number"
             min="0"
-            step="any"
             placeholder="e.g. 8.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -67,12 +61,9 @@ export default function InsulationCalculator() {
             id="insulation-width"
             type="number"
             min="0"
-            step="any"
             placeholder="e.g. 2.4"
             value={inputs.width}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, width: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, width: e.target.value }))}
           />
         </div>
 
@@ -80,12 +71,10 @@ export default function InsulationCalculator() {
           <Label>Application</Label>
           <Select
             value={inputs.area_type}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, area_type: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, area_type: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select application" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="wall">External / Cavity Wall</SelectItem>
@@ -100,12 +89,10 @@ export default function InsulationCalculator() {
           <Label>Insulation Type</Label>
           <Select
             value={inputs.insType}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, insType: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, insType: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select insulation type" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="mineral_wool">Mineral Wool (rolls)</SelectItem>

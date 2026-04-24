@@ -1,56 +1,48 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Brush } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculatePainting } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function PaintingCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     height: '',
     coats: '2',
     surface: 'plaster',
     paintType: 'emulsion',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.height) return null;
-
-    const length = parseFloat(inputs.length);
-    const height = parseFloat(inputs.height);
-    const coats = parseInt(inputs.coats, 10);
-
-    if (
-      Number.isNaN(length) ||
-      Number.isNaN(height) ||
-      Number.isNaN(coats)
-    ) {
-      return null;
-    }
-
-    return calculatePainting({
-      length,
-      height,
-      coats,
-      surface: inputs.surface,
-      paintType: inputs.paintType,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Painting & Decorating Calculator"
       icon={Brush}
       calcType="painting"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length || !inputs.height) return null;
+
+        return calculatePainting({
+          length: parseFloat(inputs.length),
+          height: parseFloat(inputs.height),
+          coats: parseInt(inputs.coats),
+          surface: inputs.surface,
+          paintType: inputs.paintType,
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -59,12 +51,9 @@ export default function PaintingCalculator() {
             id="painting-length"
             type="number"
             min="0"
-            step="any"
             placeholder="e.g. 5.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -74,12 +63,9 @@ export default function PaintingCalculator() {
             id="painting-height"
             type="number"
             min="0"
-            step="any"
             placeholder="e.g. 2.4"
             value={inputs.height}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, height: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, height: e.target.value }))}
           />
         </div>
 
@@ -87,12 +73,10 @@ export default function PaintingCalculator() {
           <Label>Surface Type</Label>
           <Select
             value={inputs.surface}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, surface: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, surface: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select surface type" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="plaster">New Plaster / Skim</SelectItem>
@@ -107,12 +91,10 @@ export default function PaintingCalculator() {
           <Label>Paint Type</Label>
           <Select
             value={inputs.paintType}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, paintType: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, paintType: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select paint type" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="emulsion">Emulsion (walls/ceilings)</SelectItem>
@@ -127,12 +109,10 @@ export default function PaintingCalculator() {
           <Label>Number of Coats</Label>
           <Select
             value={inputs.coats}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, coats: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, coats: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select number of coats" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="1">1 Coat</SelectItem>

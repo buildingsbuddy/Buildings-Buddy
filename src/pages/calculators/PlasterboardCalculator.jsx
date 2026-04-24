@@ -1,52 +1,44 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Square } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculatePlasterboard } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function PlasterboardCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     height: '',
     layers: '1',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.height) return null;
-
-    const length = parseFloat(inputs.length);
-    const height = parseFloat(inputs.height);
-    const layers = parseInt(inputs.layers, 10);
-
-    if (
-      Number.isNaN(length) ||
-      Number.isNaN(height) ||
-      Number.isNaN(layers)
-    ) {
-      return null;
-    }
-
-    return calculatePlasterboard({
-      length,
-      height,
-      layers,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Plasterboard Calculator"
       icon={Square}
       calcType="plasterboard"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length || !inputs.height) return null;
+
+        return calculatePlasterboard({
+          length: parseFloat(inputs.length),
+          height: parseFloat(inputs.height),
+          layers: parseInt(inputs.layers),
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -54,13 +46,9 @@ export default function PlasterboardCalculator() {
           <Input
             id="plasterboard-length"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 5.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -69,13 +57,9 @@ export default function PlasterboardCalculator() {
           <Input
             id="plasterboard-height"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 2.4"
             value={inputs.height}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, height: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, height: e.target.value }))}
           />
         </div>
 
@@ -83,12 +67,10 @@ export default function PlasterboardCalculator() {
           <Label>Number of Layers</Label>
           <Select
             value={inputs.layers}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, layers: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, layers: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select number of layers" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="1">1 Layer</SelectItem>

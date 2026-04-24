@@ -7,16 +7,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function TopBar({ onMobileMenuToggle }) {
-  const user = {
-    full_name: 'Local User',
-    email: 'user@example.com',
-  };
+  const { user, profile, logout } = useAuth();
 
-  const handleLogout = () => {
-    window.location.href = '/';
-  };
+  const name = profile?.full_name || user?.email || 'User';
+  const email = user?.email || '';
 
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 md:px-6">
@@ -31,20 +28,20 @@ export default function TopBar({ onMobileMenuToggle }) {
           <Button variant="ghost" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
               <span className="text-xs font-semibold text-primary-foreground">
-                {user.full_name?.[0]?.toUpperCase() || 'U'}
+                {name?.[0]?.toUpperCase()}
               </span>
             </div>
             <span className="hidden sm:inline text-sm font-medium">
-              {user.full_name}
+              {name}
             </span>
           </Button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end">
           <DropdownMenuItem className="text-sm text-muted-foreground">
-            {user.email}
+            {email}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleLogout}>
+          <DropdownMenuItem onClick={logout}>
             <LogOut className="w-4 h-4 mr-2" />
             Logout
           </DropdownMenuItem>

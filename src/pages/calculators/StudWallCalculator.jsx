@@ -1,98 +1,84 @@
 import React, { useState } from 'react';
-import { Columns3 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { MoveUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
+import { calculateStaircase } from '@/lib/calculatorEngine';
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
-import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
-import { calculateStudWalls } from '@/lib/calculatorEngine';
 
-export default function StudWallCalculator() {
-  const [inputs, setInputs] = useState({
-    length: '',
-    height: '',
-    spacing: '400',
-  });
+export default function StaircaseCalculator() {
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
 
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.height) return null;
-
-    const length = parseFloat(inputs.length);
-    const height = parseFloat(inputs.height);
-    const spacing = parseInt(inputs.spacing, 10);
-
-    if (
-      Number.isNaN(length) ||
-      Number.isNaN(height) ||
-      Number.isNaN(spacing)
-    ) {
-      return null;
-    }
-
-    return calculateStudWalls({
-      length,
-      height,
-      spacing,
-    });
-  };
+  const [inputs, setInputs] = useState(() => ({
+    totalRise: '',
+    width: '',
+    material: 'timber',
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
-      title="Stud Wall Calculator"
-      icon={Columns3}
-      calcType="stud_walls"
-      onCalculate={handleCalculate}
+      title="Staircase Calculator"
+      icon={MoveUp}
+      calcType="staircase"
+      onCalculate={() => {
+        if (!inputs.totalRise || !inputs.width) return null;
+
+        return calculateStaircase({
+          totalRise: parseFloat(inputs.totalRise) / 1000,
+          width: parseFloat(inputs.width),
+          material: inputs.material,
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="stud-wall-length">Wall Length (m)</Label>
+          <Label htmlFor="staircase-rise">Total Rise — floor to floor (mm)</Label>
           <Input
-            id="stud-wall-length"
+            id="staircase-rise"
             type="number"
             min="0"
-            step="any"
-            placeholder="e.g. 4.0"
-            value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            placeholder="e.g. 2600"
+            value={inputs.totalRise}
+            onChange={(e) => setInputs((p) => ({ ...p, totalRise: e.target.value }))}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="stud-wall-height">Wall Height (m)</Label>
+          <Label htmlFor="staircase-width">Staircase Width (m)</Label>
           <Input
-            id="stud-wall-height"
+            id="staircase-width"
             type="number"
             min="0"
-            step="any"
-            placeholder="e.g. 2.4"
-            value={inputs.height}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, height: e.target.value }))
-            }
+            placeholder="e.g. 0.9"
+            value={inputs.width}
+            onChange={(e) => setInputs((p) => ({ ...p, width: e.target.value }))}
           />
         </div>
 
         <div className="space-y-2">
-          <Label>Stud Spacing</Label>
+          <Label>Material</Label>
           <Select
-            value={inputs.spacing}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, spacing: value }))
-            }
+            value={inputs.material}
+            onValueChange={(v) => setInputs((p) => ({ ...p, material: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select stud spacing" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="400">400mm (standard)</SelectItem>
-              <SelectItem value="600">600mm</SelectItem>
+              <SelectItem value="timber">Softwood Timber</SelectItem>
+              <SelectItem value="oak">Solid Oak</SelectItem>
+              <SelectItem value="steel">Steel (open riser)</SelectItem>
+              <SelectItem value="concrete">In-situ Concrete</SelectItem>
             </SelectContent>
           </Select>
         </div>

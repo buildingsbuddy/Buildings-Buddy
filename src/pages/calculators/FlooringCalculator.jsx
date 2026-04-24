@@ -1,47 +1,44 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Grid3X3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
 import { calculateFlooring } from '@/lib/calculatorEngine';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function FlooringCalculator() {
-  const [inputs, setInputs] = useState({
+  const location = useLocation();
+  const prefillInputs = location.state?.prefillInputs;
+
+  const [inputs, setInputs] = useState(() => ({
     length: '',
     width: '',
     materialType: 'concrete_slab',
-  });
-
-  const handleCalculate = () => {
-    if (!inputs.length || !inputs.width) return null;
-
-    const length = parseFloat(inputs.length);
-    const width = parseFloat(inputs.width);
-
-    if (Number.isNaN(length) || Number.isNaN(width)) {
-      return null;
-    }
-
-    return calculateFlooring({
-      length,
-      width,
-      materialType: inputs.materialType,
-    });
-  };
+    ...prefillInputs,
+  }));
 
   return (
     <CalculatorWrapper
       title="Flooring Calculator"
       icon={Grid3X3}
       calcType="flooring"
-      onCalculate={handleCalculate}
+      onCalculate={() => {
+        if (!inputs.length || !inputs.width) return null;
+
+        return calculateFlooring({
+          length: parseFloat(inputs.length),
+          width: parseFloat(inputs.width),
+          materialType: inputs.materialType,
+        });
+      }}
+      getSavePayload={() => ({ inputs })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -49,13 +46,9 @@ export default function FlooringCalculator() {
           <Input
             id="flooring-length"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 5.0"
             value={inputs.length}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, length: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
           />
         </div>
 
@@ -64,13 +57,9 @@ export default function FlooringCalculator() {
           <Input
             id="flooring-width"
             type="number"
-            min="0"
-            step="any"
             placeholder="e.g. 4.0"
             value={inputs.width}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, width: e.target.value }))
-            }
+            onChange={(e) => setInputs((p) => ({ ...p, width: e.target.value }))}
           />
         </div>
 
@@ -78,12 +67,10 @@ export default function FlooringCalculator() {
           <Label>Floor Type</Label>
           <Select
             value={inputs.materialType}
-            onValueChange={(value) =>
-              setInputs((prev) => ({ ...prev, materialType: value }))
-            }
+            onValueChange={(v) => setInputs((p) => ({ ...p, materialType: v }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select floor type" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="concrete_slab">Concrete Slab</SelectItem>

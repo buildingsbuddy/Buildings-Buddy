@@ -22,7 +22,7 @@ export default function Landing() {
   const navigate = useNavigate();
 
   const handleGetStarted = () => {
-    navigate('/dashboard');
+    navigate('/login');
   };
 
   const handleLearnMore = () => {
