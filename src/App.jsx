@@ -1,13 +1,24 @@
 import { useState } from 'react';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/toaster';
 import { Button } from '@/components/ui/button';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  Navigate,
+} from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
+
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import { SubscriptionProvider, useSubscription } from '@/lib/subscriptionContext';
+import {
+  SubscriptionProvider,
+  useSubscription,
+} from '@/lib/subscriptionContext';
+
+import ScrollToTop from '@/components/ScrollToTop'; // ✅ NEW
 
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
@@ -122,7 +133,8 @@ function CompanyOnlyRoute({ children }) {
   const sub = useSubscription();
 
   const hasCompanyAccess =
-    sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
+    sub.plan === 'company' &&
+    (sub.status === 'trial' || sub.status === 'active');
 
   if (sub.status === 'loading') {
     return (
@@ -208,10 +220,13 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
+          {/* ✅ Scroll reset on route change */}
+          <ScrollToTop />
+
           <AppRoutes />
         </Router>
 
-        <Toaster richColors position="top-right" />
+        <Toaster />
       </QueryClientProvider>
     </AuthProvider>
   );
