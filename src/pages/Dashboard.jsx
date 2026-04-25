@@ -13,6 +13,8 @@ import {
   Zap,
   AlertCircle,
   Calendar,
+  Download,
+  Smartphone,
 } from 'lucide-react';
 import { useSubscription } from '@/lib/subscriptionContext';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,11 +29,40 @@ export default function Dashboard() {
   const [recentProjects, setRecentProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+
   const displayName =
     profile?.full_name ||
     user?.user_metadata?.full_name ||
     user?.email ||
     'User';
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    setIsStandalone(standalone);
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -81,6 +112,18 @@ export default function Dashboard() {
 
     loadDashboardData();
   }, [user?.id]);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+
+    if (choice?.outcome === 'accepted') {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+    }
+  };
 
   const statusConfig = {
     trial: {
@@ -160,6 +203,38 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {!isStandalone && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5 text-primary" />
+                </div>
+
+                <div>
+                  <p className="font-semibold">Install Buildings Buddy</p>
+                  <p className="text-sm text-muted-foreground">
+                    Add the app to your home screen for quicker access on site.
+                  </p>
+                </div>
+              </div>
+
+              {installPrompt ? (
+                <Button onClick={handleInstallApp} className="whitespace-nowrap">
+                  <Download className="w-4 h-4 mr-2" />
+                  Install App
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  On iPhone, tap Share in Safari, then choose Add to Home Screen.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {(sub.status === 'trial' ||
         sub.status === 'no_subscription' ||
         sub.status === 'expired_trial' ||
@@ -212,12 +287,7 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <SummaryCard
-          to="/billing"
-          label="Subscription"
-          icon={CreditCard}
-          badge
-        />
+        <SummaryCard to="/billing" label="Subscription" icon={CreditCard} badge />
 
         <SummaryCard
           to="/projects"
