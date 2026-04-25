@@ -11,9 +11,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY
 function json(statusCode, body) {
 return {
 statusCode,
-headers: {
-'Content-Type': 'application/json',
-},
+headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify(body),
 };
 }
@@ -24,8 +22,12 @@ data: { user },
 error,
 } = await supabaseAdmin.auth.getUser(token);
 
-if (error || !user) return null;
-return user;
+if (error) {
+console.error('Auth token error:', error);
+return null;
+}
+
+return user || null;
 }
 
 async function ensureCompanyTeam(user) {
@@ -37,6 +39,7 @@ const { data: existingMembership, error: membershipError } = await supabaseAdmin
 .maybeSingle();
 
 if (membershipError) {
+console.error('Team membership check error:', membershipError);
 throw new Error('Could not check team membership.');
 }
 
@@ -62,6 +65,7 @@ max_users: COMPANY_MAX_USERS,
 .single();
 
 if (teamError) {
+console.error('Team creation error:', teamError);
 throw new Error('Could not create company team.');
 }
 
@@ -74,6 +78,7 @@ invited_email: user.email || null,
 });
 
 if (memberError) {
+console.error('Team owner membership error:', memberError);
 throw new Error('Could not create team owner membership.');
 }
 
@@ -82,6 +87,11 @@ return team;
 
 export async function handler(event) {
 try {
+if (!process.env.VITE_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+console.error('Missing Supabase env vars for start-trial function.');
+return json(500, { error: 'Trial setup is missing server configuration.' });
+}
+
 if (event.httpMethod !== 'POST') {
 return json(405, { error: 'Method not allowed' });
 }
@@ -98,8 +108,8 @@ if (!user) {
 return json(401, { error: 'Unauthorized' });
 }
 
-const { plan = 'diy' } = JSON.parse(event.body || '{}');
-const safePlan = plan === 'company' ? 'company' : 'diy';
+const body = JSON.parse(event.body || '{}');
+const safePlan = body.plan === 'company' ? 'company' : 'diy';
 
 const { data: existingSubscription, error: existingError } = await supabaseAdmin
 .from('subscriptions')
@@ -108,6 +118,7 @@ const { data: existingSubscription, error: existingError } = await supabaseAdmin
 .maybeSingle();
 
 if (existingError) {
+console.error('Existing subscription check error:', existingError);
 return json(500, { error: 'Could not check existing subscription.' });
 }
 
@@ -125,6 +136,7 @@ return json(200, {
 success: true,
 alreadyActive: true,
 message: 'Your trial is already active.',
+subscription: existingSubscription,
 });
 }
 }
