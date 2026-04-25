@@ -12,10 +12,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSubscription } from '@/lib/subscriptionContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Sidebar({ collapsed, setCollapsed }) {
   const location = useLocation();
   const sub = useSubscription();
+  const isMobile = useIsMobile();
 
   const hasCompanyAccess =
     sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
@@ -24,11 +26,15 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { label: 'Calculators', icon: Calculator, path: '/calculators' },
     { label: 'Projects', icon: FolderOpen, path: '/projects' },
-    ...(hasCompanyAccess
-      ? [{ label: 'Team', icon: Users, path: '/team' }]
-      : []),
+    ...(hasCompanyAccess ? [{ label: 'Team', icon: Users, path: '/team' }] : []),
     { label: 'Billing', icon: CreditCard, path: '/billing' },
   ];
+
+  const handleNavClick = () => {
+    if (isMobile && typeof setCollapsed === 'function') {
+      setCollapsed(true);
+    }
+  };
 
   return (
     <aside
@@ -57,6 +63,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             <Link
               key={item.path}
               to={item.path}
+              onClick={handleNavClick}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
                 isActive
@@ -85,6 +92,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
 
           <Link
             to="/billing"
+            onClick={handleNavClick}
             className="text-xs text-sidebar-foreground/60 hover:text-sidebar-primary mt-1 block"
           >
             Upgrade now →
@@ -92,17 +100,19 @@ export default function Sidebar({ collapsed, setCollapsed }) {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setCollapsed(!collapsed)}
-        className="mx-3 mb-4 p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors flex items-center justify-center"
-      >
-        {collapsed ? (
-          <ChevronRight className="w-4 h-4" />
-        ) : (
-          <ChevronLeft className="w-4 h-4" />
-        )}
-      </button>
+      {!isMobile && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className="mx-3 mb-4 p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors flex items-center justify-center"
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </button>
+      )}
     </aside>
   );
 }

@@ -1,0 +1,19 @@
+{
+  "name": "Buildings Buddy",
+  "short_name": "Buildings Buddy",
+  "description": "Construction material calculators, guide pricing and project estimates.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#1e2d4d",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
