@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MoveUp } from 'lucide-react';
+import { Columns3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import CalculatorWrapper from '@/components/calculators/CalculatorWrapper';
-import { calculateStaircase } from '@/lib/calculatorEngine';
+import { calculateStudWalls } from '@/lib/calculatorEngine';
+import {
+  ALLOWANCE_OPTIONS,
+  getExtraAllowancePercent,
+  withExtraAllowance,
+  addLengthOrderRow,
+} from '@/lib/orderEnhancements';
 import {
   Select,
   SelectContent,
@@ -13,74 +19,156 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-export default function StaircaseCalculator() {
+const STOCK_LENGTHS = ['2.4', '3.0', '3.6', '4.2', '4.8', '5.4', '6.0'];
+
+function isStudWallOrderable(row) {
+  const material = String(row.material || '').toLowerCase();
+  return (
+    material.includes('timber') ||
+    material.includes('noggins') ||
+    material.includes('head') ||
+    material.includes('sole') ||
+    material.includes('plasterboard') ||
+    material.includes('drywall screws') ||
+    material.includes('insulation')
+  );
+}
+
+export default function StudWallCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
   const [inputs, setInputs] = useState(() => ({
-    totalRise: '',
-    width: '',
-    material: 'timber',
+    length: '',
+    height: '',
+    spacing: '400',
+    allowance: 'standard',
+    timberStockLength: '2.4',
     ...prefillInputs,
   }));
 
+  const extraAllowancePercent = useMemo(
+    () => getExtraAllowancePercent(inputs.allowance),
+    [inputs.allowance]
+  );
+
+  const calculateResults = () => {
+    if (!inputs.length || !inputs.height) return null;
+
+    const baseResults = calculateStudWalls({
+      length: parseFloat(inputs.length),
+      height: parseFloat(inputs.height),
+      spacing: parseFloat(inputs.spacing),
+    });
+
+    let results = withExtraAllowance(
+      baseResults,
+      extraAllowancePercent,
+      isStudWallOrderable
+    );
+
+    results = addLengthOrderRow(
+      results,
+      'Total Timber Required',
+      inputs.timberStockLength,
+      'Recommended CLS Timber Order'
+    );
+
+    return results;
+  };
+
   return (
     <CalculatorWrapper
-      title="Staircase Calculator"
-      icon={MoveUp}
-      calcType="staircase"
-      onCalculate={() => {
-        if (!inputs.totalRise || !inputs.width) return null;
-
-        return calculateStaircase({
-          totalRise: parseFloat(inputs.totalRise) / 1000,
-          width: parseFloat(inputs.width),
-          material: inputs.material,
-        });
-      }}
-      getSavePayload={() => ({ inputs })}
+      title="Stud Wall Calculator"
+      icon={Columns3}
+      calcType="stud_walls"
+      onCalculate={calculateResults}
+      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="staircase-rise">Total Rise — floor to floor (mm)</Label>
-          <Input
-            id="staircase-rise"
-            type="number"
-            min="0"
-            placeholder="e.g. 2600"
-            value={inputs.totalRise}
-            onChange={(e) => setInputs((p) => ({ ...p, totalRise: e.target.value }))}
-          />
-        </div>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="stud-wall-length">Wall Length (m)</Label>
+            <Input
+              id="stud-wall-length"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 4.8"
+              value={inputs.length}
+              onChange={(e) => setInputs((p) => ({ ...p, length: e.target.value }))}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="staircase-width">Staircase Width (m)</Label>
-          <Input
-            id="staircase-width"
-            type="number"
-            min="0"
-            placeholder="e.g. 0.9"
-            value={inputs.width}
-            onChange={(e) => setInputs((p) => ({ ...p, width: e.target.value }))}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="stud-wall-height">Wall Height (m)</Label>
+            <Input
+              id="stud-wall-height"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 2.4"
+              value={inputs.height}
+              onChange={(e) => setInputs((p) => ({ ...p, height: e.target.value }))}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label>Material</Label>
-          <Select
-            value={inputs.material}
-            onValueChange={(v) => setInputs((p) => ({ ...p, material: v }))}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="timber">Softwood Timber</SelectItem>
-              <SelectItem value="oak">Solid Oak</SelectItem>
-              <SelectItem value="steel">Steel (open riser)</SelectItem>
-              <SelectItem value="concrete">In-situ Concrete</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Stud Spacing</Label>
+            <Select
+              value={inputs.spacing}
+              onValueChange={(value) => setInputs((p) => ({ ...p, spacing: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="400">400mm centres</SelectItem>
+                <SelectItem value="450">450mm centres</SelectItem>
+                <SelectItem value="600">600mm centres</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>CLS Stock Length</Label>
+            <Select
+              value={inputs.timberStockLength}
+              onValueChange={(value) =>
+                setInputs((p) => ({ ...p, timberStockLength: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STOCK_LENGTHS.map((length) => (
+                  <SelectItem key={length} value={length}>
+                    {length}m lengths
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Extra Ordering Allowance</Label>
+            <Select
+              value={inputs.allowance}
+              onValueChange={(value) => setInputs((p) => ({ ...p, allowance: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ALLOWANCE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
     </CalculatorWrapper>

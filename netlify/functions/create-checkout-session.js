@@ -14,16 +14,36 @@ const priceMap = {
   },
 };
 
+function getSiteUrl(event) {
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, '');
+  }
+
+  const origin = event.headers.origin || event.headers.Origin;
+
+  if (origin && !origin.includes('localhost')) {
+    return origin.replace(/\/$/, '');
+  }
+
+  return 'https://buildingsbuddy.com';
+}
+
 export async function handler(event) {
   try {
     if (event.httpMethod !== 'POST') {
-      return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+      return {
+        statusCode: 405,
+        body: JSON.stringify({ error: 'Method not allowed' }),
+      };
     }
 
     const token = event.headers.authorization?.replace('Bearer ', '');
 
     if (!token) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Missing auth token' }) };
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'Missing auth token' }),
+      };
     }
 
     const supabase = createClient(
@@ -37,25 +57,31 @@ export async function handler(event) {
     } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
     }
 
     const { plan, billingCycle } = JSON.parse(event.body || '{}');
     const priceId = priceMap?.[plan]?.[billingCycle];
 
     if (!priceId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Invalid plan or billing cycle' }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid plan or billing cycle' }),
+      };
     }
 
-    const origin = event.headers.origin || 'http://localhost:8888';
+    const siteUrl = getSiteUrl(event);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer_email: user.email,
       client_reference_id: user.id,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/billing?checkout=success`,
-      cancel_url: `${origin}/billing?checkout=cancelled`,
+      success_url: `${siteUrl}/billing?checkout=success`,
+      cancel_url: `${siteUrl}/billing?checkout=cancelled`,
       metadata: {
         user_id: user.id,
         plan,
@@ -76,9 +102,10 @@ export async function handler(event) {
     };
   } catch (err) {
     console.error('Checkout error:', err);
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: err.message || 'Checkout failed' }),
     };
   }
 }

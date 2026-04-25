@@ -7,96 +7,112 @@ const SubscriptionContext = createContext(null);
 const TRIAL_DAYS = 7;
 const COMPANY_MAX_USERS = 5;
 
-export function SubscriptionProvider({ children }) {
-  const { user, isAuthenticated, isLoadingAuth } = useAuth();
+const emptyState = {
+  status: 'loading',
+  plan: null,
+  billingCycle: null,
+  trialEndDate: null,
+  trialDaysLeft: 0,
+  stripeCustomerId: null,
+  stripeSubscriptionId: null,
+  stripePriceId: null,
+  currentPeriodEnd: null,
+  team: null,
+  teamRole: null,
+  isTeamOwner: false,
+};
 
-  const [subState, setSubState] = useState({
-    status: 'loading',
-    plan: null,
-    billingCycle: null,
-    trialEndDate: null,
-    trialDaysLeft: 0,
-    team: null,
-    teamRole: null,
-    isTeamOwner: false,
-  });
+function calculateTrialDaysLeft(trialEndDate) {
+  if (!trialEndDate) return 0;
 
-  const buildState = (subscription, teamMembership = null) => {
-    const team = teamMembership?.teams || null;
-    const teamRole = teamMembership?.role || null;
+  const endDate = new Date(trialEndDate);
+  const now = new Date();
 
-    if (!subscription) {
-      return {
-        status: 'no_subscription',
-        plan: null,
-        billingCycle: null,
-        trialEndDate: null,
-        trialDaysLeft: 0,
-        team,
-        teamRole,
-        isTeamOwner: teamRole === 'owner',
-      };
-    }
+  return Math.max(0, Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)));
+}
 
-    if (subscription.status === 'trial') {
-      const endDate = subscription.trial_end_date
-        ? new Date(subscription.trial_end_date)
-        : null;
+function normaliseSubscription(subscription, teamMembership = null) {
+  const team = teamMembership?.teams || null;
+  const teamRole = teamMembership?.role || null;
 
-      const now = new Date();
-      const daysLeft = endDate
-        ? Math.max(0, Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)))
-        : 0;
-
-      return {
-        status: daysLeft <= 0 ? 'expired_trial' : 'trial',
-        plan: subscription.plan,
-        billingCycle: subscription.billing_cycle,
-        trialEndDate: subscription.trial_end_date,
-        trialDaysLeft: daysLeft,
-        team,
-        teamRole,
-        isTeamOwner: teamRole === 'owner',
-      };
-    }
-
-    if (subscription.status === 'active') {
-      return {
-        status: 'active',
-        plan: subscription.plan,
-        billingCycle: subscription.billing_cycle,
-        trialEndDate: subscription.trial_end_date,
-        trialDaysLeft: 0,
-        team,
-        teamRole,
-        isTeamOwner: teamRole === 'owner',
-      };
-    }
-
-    if (subscription.status === 'inactive') {
-      return {
-        status: 'inactive',
-        plan: subscription.plan,
-        billingCycle: subscription.billing_cycle,
-        trialEndDate: subscription.trial_end_date,
-        trialDaysLeft: 0,
-        team,
-        teamRole,
-        isTeamOwner: teamRole === 'owner',
-      };
-    }
-
+  if (!subscription) {
     return {
+      ...emptyState,
       status: 'no_subscription',
-      plan: null,
-      billingCycle: null,
-      trialEndDate: null,
-      trialDaysLeft: 0,
       team,
       teamRole,
       isTeamOwner: teamRole === 'owner',
     };
+  }
+
+  if (subscription.status === 'active') {
+    return {
+      ...emptyState,
+      status: 'active',
+      plan: subscription.plan,
+      billingCycle: subscription.billing_cycle,
+      trialEndDate: null,
+      trialDaysLeft: 0,
+      stripeCustomerId: subscription.stripe_customer_id || null,
+      stripeSubscriptionId: subscription.stripe_subscription_id || null,
+      stripePriceId: subscription.stripe_price_id || null,
+      currentPeriodEnd: subscription.current_period_end || null,
+      team,
+      teamRole,
+      isTeamOwner: teamRole === 'owner',
+    };
+  }
+
+  if (subscription.status === 'trial') {
+    const daysLeft = calculateTrialDaysLeft(subscription.trial_end_date);
+
+    return {
+      ...emptyState,
+      status: daysLeft <= 0 ? 'expired_trial' : 'trial',
+      plan: subscription.plan,
+      billingCycle: subscription.billing_cycle,
+      trialEndDate: subscription.trial_end_date,
+      trialDaysLeft: daysLeft,
+      stripeCustomerId: subscription.stripe_customer_id || null,
+      stripeSubscriptionId: subscription.stripe_subscription_id || null,
+      stripePriceId: subscription.stripe_price_id || null,
+      currentPeriodEnd: subscription.current_period_end || null,
+      team,
+      teamRole,
+      isTeamOwner: teamRole === 'owner',
+    };
+  }
+
+  if (subscription.status === 'inactive') {
+    return {
+      ...emptyState,
+      status: 'inactive',
+      plan: subscription.plan,
+      billingCycle: subscription.billing_cycle,
+      trialEndDate: subscription.trial_end_date || null,
+      trialDaysLeft: 0,
+      stripeCustomerId: subscription.stripe_customer_id || null,
+      stripeSubscriptionId: subscription.stripe_subscription_id || null,
+      stripePriceId: subscription.stripe_price_id || null,
+      currentPeriodEnd: subscription.current_period_end || null,
+      team,
+      teamRole,
+      isTeamOwner: teamRole === 'owner',
+    };
+  }
+
+  return {
+    ...emptyState,
+    status: 'no_subscription',
+    team,
+    teamRole,
+    isTeamOwner: teamRole === 'owner',
   };
+}
+
+export function SubscriptionProvider({ children }) {
+  const { user, isAuthenticated, isLoadingAuth } = useAuth();
+  const [subState, setSubState] = useState(emptyState);
 
   const loadTeamMembership = async () => {
     if (!user?.id) return null;
@@ -129,78 +145,22 @@ export function SubscriptionProvider({ children }) {
     return data || null;
   };
 
-  const loadSubscription = async () => {
-    if (isLoadingAuth) return null;
+  const loadOwnerSubscription = async (ownerId) => {
+    if (!ownerId) return null;
 
-    if (!isAuthenticated || !user?.id) {
-      setSubState({
-        status: 'no_subscription',
-        plan: null,
-        billingCycle: null,
-        trialEndDate: null,
-        trialDaysLeft: 0,
-        team: null,
-        teamRole: null,
-        isTeamOwner: false,
-      });
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to load team owner subscription:', error);
       return null;
     }
 
-    try {
-      setSubState((prev) => ({ ...prev, status: 'loading' }));
-
-      const [subscriptionResponse, teamMembership] = await Promise.all([
-        supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        loadTeamMembership(),
-      ]);
-
-      const { data: subscription, error } = subscriptionResponse;
-
-      if (error) {
-        console.error('Failed to load subscription:', error);
-        setSubState({
-          status: 'no_subscription',
-          plan: null,
-          billingCycle: null,
-          trialEndDate: null,
-          trialDaysLeft: 0,
-          team: teamMembership?.teams || null,
-          teamRole: teamMembership?.role || null,
-          isTeamOwner: teamMembership?.role === 'owner',
-        });
-        return null;
-      }
-
-      const nextState = buildState(subscription, teamMembership);
-      setSubState(nextState);
-
-      return subscription;
-    } catch (error) {
-      console.error('Unexpected subscription load error:', error);
-      setSubState({
-        status: 'no_subscription',
-        plan: null,
-        billingCycle: null,
-        trialEndDate: null,
-        trialDaysLeft: 0,
-        team: null,
-        teamRole: null,
-        isTeamOwner: false,
-      });
-      return null;
-    }
+    return data || null;
   };
-
-  useEffect(() => {
-    loadSubscription();
-  }, [user?.id, isAuthenticated, isLoadingAuth]);
-
-  const canCalculate =
-    subState.status === 'trial' || subState.status === 'active';
 
   const ensureCompanyTeam = async () => {
     if (!user?.id) return null;
@@ -256,15 +216,13 @@ export function SubscriptionProvider({ children }) {
       return null;
     }
 
-    const { error: memberError } = await supabase
-      .from('team_members')
-      .insert({
-        team_id: team.id,
-        user_id: user.id,
-        role: 'owner',
-        status: 'active',
-        invited_email: user.email || null,
-      });
+    const { error: memberError } = await supabase.from('team_members').insert({
+      team_id: team.id,
+      user_id: user.id,
+      role: 'owner',
+      status: 'active',
+      invited_email: user.email || null,
+    });
 
     if (memberError) {
       console.error('Failed to create owner team membership:', memberError);
@@ -274,13 +232,133 @@ export function SubscriptionProvider({ children }) {
     return team;
   };
 
+  const loadSubscription = async () => {
+    if (isLoadingAuth) return null;
+
+    if (!isAuthenticated || !user?.id) {
+      setSubState({
+        ...emptyState,
+        status: 'no_subscription',
+      });
+      return null;
+    }
+
+    try {
+      setSubState((prev) => ({ ...prev, status: 'loading' }));
+
+      const [subscriptionResponse, teamMembership] = await Promise.all([
+        supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        loadTeamMembership(),
+      ]);
+
+      const { data: ownSubscription, error } = subscriptionResponse;
+
+      if (error) {
+        console.error('Failed to load subscription:', error);
+        setSubState({
+          ...emptyState,
+          status: 'no_subscription',
+          team: teamMembership?.teams || null,
+          teamRole: teamMembership?.role || null,
+          isTeamOwner: teamMembership?.role === 'owner',
+        });
+        return null;
+      }
+
+      let effectiveSubscription = ownSubscription;
+      let effectiveTeamMembership = teamMembership;
+
+      const hasOwnActiveAccess =
+        ownSubscription?.status === 'active' ||
+        (ownSubscription?.status === 'trial' &&
+          calculateTrialDaysLeft(ownSubscription.trial_end_date) > 0);
+
+      if (!hasOwnActiveAccess && teamMembership?.teams?.owner_id) {
+        const ownerSubscription = await loadOwnerSubscription(
+          teamMembership.teams.owner_id
+        );
+
+        const ownerHasCompanyAccess =
+          ownerSubscription?.plan === 'company' &&
+          (ownerSubscription?.status === 'active' ||
+            (ownerSubscription?.status === 'trial' &&
+              calculateTrialDaysLeft(ownerSubscription.trial_end_date) > 0));
+
+        if (ownerHasCompanyAccess) {
+          effectiveSubscription = ownerSubscription;
+        }
+      }
+
+      if (
+        effectiveSubscription?.plan === 'company' &&
+        (effectiveSubscription.status === 'active' ||
+          effectiveSubscription.status === 'trial') &&
+        !effectiveTeamMembership
+      ) {
+        await ensureCompanyTeam();
+        effectiveTeamMembership = await loadTeamMembership();
+      }
+
+      const nextState = normaliseSubscription(
+        effectiveSubscription,
+        effectiveTeamMembership
+      );
+
+      setSubState(nextState);
+      return effectiveSubscription;
+    } catch (error) {
+      console.error('Unexpected subscription load error:', error);
+      setSubState({
+        ...emptyState,
+        status: 'no_subscription',
+      });
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    loadSubscription();
+  }, [user?.id, isAuthenticated, isLoadingAuth]);
+
+  const canCalculate =
+    subState.status === 'trial' || subState.status === 'active';
+
+  const canStartTrial =
+    subState.status === 'no_subscription' &&
+    !subState.trialEndDate &&
+    !subState.stripeSubscriptionId;
+
   const startTrial = async (plan = 'diy') => {
     if (!user?.id) return;
 
-    let team = null;
+    const { data: existingSubscription, error: existingError } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('Failed to check existing subscription before trial:', existingError);
+      return;
+    }
+
+    if (
+      existingSubscription?.status === 'active' ||
+      existingSubscription?.status === 'trial' ||
+      existingSubscription?.trial_end_date ||
+      existingSubscription?.stripe_subscription_id
+    ) {
+      console.warn('Trial not started because user already has subscription/trial history.');
+      await loadSubscription();
+      return;
+    }
 
     if (plan === 'company') {
-      team = await ensureCompanyTeam();
+      const team = await ensureCompanyTeam();
 
       if (!team) {
         console.error('Company trial could not start because team creation failed.');
@@ -291,18 +369,17 @@ export function SubscriptionProvider({ children }) {
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + TRIAL_DAYS);
 
-    const payload = {
-      user_id: user.id,
-      status: 'trial',
-      plan,
-      billing_cycle: null,
-      trial_end_date: endDate.toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from('subscriptions')
-      .upsert(payload, { onConflict: 'user_id' });
+    const { error } = await supabase.from('subscriptions').upsert(
+      {
+        user_id: user.id,
+        status: 'trial',
+        plan,
+        billing_cycle: null,
+        trial_end_date: endDate.toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
 
     if (error) {
       console.error('Failed to start trial:', error);
@@ -313,6 +390,10 @@ export function SubscriptionProvider({ children }) {
   };
 
   const activateSubscription = async (plan = 'diy', billingCycle = 'monthly') => {
+    console.warn(
+      'activateSubscription is legacy. Stripe webhook should activate paid subscriptions.'
+    );
+
     if (!user?.id) return;
 
     if (plan === 'company') {
@@ -324,18 +405,17 @@ export function SubscriptionProvider({ children }) {
       }
     }
 
-    const payload = {
-      user_id: user.id,
-      status: 'active',
-      plan,
-      billing_cycle: billingCycle,
-      trial_end_date: null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from('subscriptions')
-      .upsert(payload, { onConflict: 'user_id' });
+    const { error } = await supabase.from('subscriptions').upsert(
+      {
+        user_id: user.id,
+        status: 'active',
+        plan,
+        billing_cycle: billingCycle,
+        trial_end_date: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
 
     if (error) {
       console.error('Failed to activate subscription:', error);
@@ -346,20 +426,23 @@ export function SubscriptionProvider({ children }) {
   };
 
   const cancelSubscription = async () => {
+    console.warn(
+      'cancelSubscription is legacy. Stripe Customer Portal should cancel paid subscriptions.'
+    );
+
     if (!user?.id) return;
 
-    const payload = {
-      user_id: user.id,
-      status: 'inactive',
-      plan: subState.plan,
-      billing_cycle: subState.billingCycle,
-      trial_end_date: subState.trialEndDate,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase
-      .from('subscriptions')
-      .upsert(payload, { onConflict: 'user_id' });
+    const { error } = await supabase.from('subscriptions').upsert(
+      {
+        user_id: user.id,
+        status: 'inactive',
+        plan: subState.plan,
+        billing_cycle: subState.billingCycle,
+        trial_end_date: subState.trialEndDate,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
 
     if (error) {
       console.error('Failed to cancel subscription:', error);
@@ -374,6 +457,7 @@ export function SubscriptionProvider({ children }) {
       value={{
         ...subState,
         canCalculate,
+        canStartTrial,
         startTrial,
         activateSubscription,
         cancelSubscription,
@@ -388,6 +472,7 @@ export function SubscriptionProvider({ children }) {
 
 export const useSubscription = () => {
   const context = useContext(SubscriptionContext);
+
   if (!context) {
     throw new Error('useSubscription must be used within a SubscriptionProvider');
   }

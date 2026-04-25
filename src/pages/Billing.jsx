@@ -17,6 +17,9 @@ import {
   Users,
   UserPlus,
   Trash2,
+  PoundSterling,
+  FileText,
+  Building2,
 } from 'lucide-react';
 import { useSubscription } from '@/lib/subscriptionContext';
 import { motion } from 'framer-motion';
@@ -26,34 +29,40 @@ const plans = [
   {
     id: 'diy',
     name: 'DIY Plan',
-    description: 'Perfect for individual users, self-builds, and DIY projects.',
+    description: 'For individuals, handymen, self-builds, and small local jobs.',
     monthlyPrice: 19.99,
     yearlyPrice: 199,
+    tagline: 'Simple material estimating for everyday jobs.',
     features: [
-      { text: 'All calculators', active: true },
-      { text: 'Unlimited calculations', active: true },
-      { text: 'Save up to 20 projects', active: true },
+      { text: 'All construction calculators', active: true },
+      { text: 'Material quantity estimates', active: true },
+      { text: 'UK guide material price estimates', active: true },
       { text: 'Export results to PDF', active: true },
+      { text: 'Save up to 20 projects', active: true },
       { text: 'Project save / reopen / update', active: true },
       { text: 'Single user access', active: true },
-      { text: 'Team member access', active: false },
+      { text: 'Team access and shared workflow', active: false },
+      { text: 'Advanced ordering insights', active: false },
     ],
   },
   {
     id: 'company',
     name: 'Company Plan',
-    description: 'Built for trades, contractors, surveyors, and growing teams.',
+    description: 'For builders, contractors, surveyors, and growing teams.',
     monthlyPrice: 49,
     yearlyPrice: 490,
     popular: true,
+    tagline: 'Professional estimating workflow for real jobs.',
     features: [
       { text: 'Everything in DIY', active: true },
+      { text: 'UK guide material price estimates', active: true },
       { text: 'Unlimited projects', active: true },
       { text: 'Up to 5 users included', active: true },
-      { text: 'Team access', active: true },
-      { text: 'Shared project workflow', active: true },
+      { text: 'Team access and shared project workflow', active: true },
+      { text: 'Advanced ordering insights', active: true },
+      { text: 'Professional PDF outputs', active: true },
       { text: 'Priority support', active: true },
-      { text: 'Extra paid seats later', active: true },
+      { text: 'Future early-user price lock', active: true },
     ],
   },
 ];
@@ -116,19 +125,8 @@ export default function Billing() {
           .order('created_at', { ascending: false }),
       ]);
 
-      if (membersResponse.error) {
-        console.error('Failed to load team members:', membersResponse.error);
-        setMembers([]);
-      } else {
-        setMembers(membersResponse.data || []);
-      }
-
-      if (invitesResponse.error) {
-        console.error('Failed to load team invites:', invitesResponse.error);
-        setInvites([]);
-      } else {
-        setInvites(invitesResponse.data || []);
-      }
+      setMembers(membersResponse.error ? [] : membersResponse.data || []);
+      setInvites(invitesResponse.error ? [] : invitesResponse.data || []);
     } catch (error) {
       console.error('Unexpected team load error:', error);
       setMembers([]);
@@ -139,9 +137,7 @@ export default function Billing() {
   };
 
   useEffect(() => {
-    if (team?.id) {
-      loadTeamData();
-    }
+    if (team?.id) loadTeamData();
   }, [team?.id]);
 
   const activeSeatCount = members.filter((m) => m.status === 'active').length;
@@ -395,7 +391,7 @@ export default function Billing() {
           Billing & Subscription
         </h1>
         <p className="text-muted-foreground mt-1">
-          Choose the plan that fits how you work.
+          Choose the plan that fits how you estimate, save and manage jobs.
         </p>
       </div>
 
@@ -569,17 +565,35 @@ export default function Billing() {
       )}
 
       <Card className="border-accent/20 bg-accent/5">
-        <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <p className="font-semibold">7-day free trial</p>
-            <p className="text-sm text-muted-foreground">
-              Start with full access before choosing your paid plan.
-            </p>
+        <CardContent className="p-5 grid md:grid-cols-3 gap-4">
+          <div className="flex gap-3">
+            <PoundSterling className="w-5 h-5 text-accent mt-0.5" />
+            <div>
+              <p className="font-semibold">UK guide material pricing</p>
+              <p className="text-sm text-muted-foreground">
+                Material cost estimates included on both plans.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="w-4 h-4" />
-            Company plan includes up to 5 users
+          <div className="flex gap-3">
+            <FileText className="w-5 h-5 text-accent mt-0.5" />
+            <div>
+              <p className="font-semibold">PDF exports</p>
+              <p className="text-sm text-muted-foreground">
+                Export estimates for records, suppliers, or clients.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Building2 className="w-5 h-5 text-accent mt-0.5" />
+            <div>
+              <p className="font-semibold">Company workflow</p>
+              <p className="text-sm text-muted-foreground">
+                Unlimited projects, teams, and professional workflow.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -620,7 +634,7 @@ export default function Billing() {
                 >
                   {plan.popular && (
                     <div className="absolute top-0 right-0 px-3 py-1 bg-accent text-accent-foreground text-xs font-semibold rounded-bl-lg flex items-center gap-1">
-                      <Crown className="w-3 h-3" /> Most Popular
+                      <Crown className="w-3 h-3" /> Best for Businesses
                     </div>
                   )}
 
@@ -634,13 +648,19 @@ export default function Billing() {
                   </CardHeader>
 
                   <CardContent className="space-y-6">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-heading font-bold">
-                        £{formatPrice(price)}
-                      </span>
-                      <span className="text-muted-foreground">
-                        /{cycle === 'monthly' ? 'mo' : 'yr'}
-                      </span>
+                    <div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-4xl font-heading font-bold">
+                          £{formatPrice(price)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          /{cycle === 'monthly' ? 'mo' : 'yr'}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {plan.tagline}
+                      </p>
                     </div>
 
                     <ul className="space-y-3">
@@ -697,6 +717,11 @@ export default function Billing() {
             );
           })}
         </div>
+
+        <p className="text-xs text-muted-foreground mt-4">
+          Material price estimates are guide values only. Labour, plant, delivery,
+          waste removal, profit, overheads and VAT are not included.
+        </p>
       </div>
     </div>
   );

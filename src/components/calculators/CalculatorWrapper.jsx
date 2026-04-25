@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileDown, Save } from 'lucide-react';
+import { ArrowLeft, FileDown, Save, ClipboardList } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,41 @@ import {
 
 const DIY_PROJECT_LIMIT = 20;
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function getResultGroup(row) {
+  const material = String(row.material || '').toLowerCase();
+
+  if (material.includes('pack') || material.includes('pallet')) return 'Ordering';
+  if (material.includes('area') || material.includes('volume')) return 'Measurements';
+  if (material.includes('screw') || material.includes('fixing')) return 'Fixings';
+
+  return 'Materials';
+}
+
+function groupResults(results = []) {
+  const groups = {
+    Measurements: [],
+    Materials: [],
+    Fixings: [],
+    Ordering: [],
+  };
+
+  results.forEach((row) => {
+    const group = getResultGroup(row);
+    groups[group].push(row);
+  });
+
+  return Object.entries(groups).filter(([, rows]) => rows.length > 0);
+}
+
 export default function CalculatorWrapper({
   title,
   icon: Icon,
@@ -42,39 +77,8 @@ export default function CalculatorWrapper({
   const { user } = useAuth();
   const sub = useSubscription();
 
-  const reopenedCalculationId = location.state?.calculationId || null;
-  const reopenedProjectId = location.state?.projectId || null;
-  const reopenedProjectName = location.state?.projectName || '';
-
-  const isCompanyPlan =
-    sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
-
   const [results, setResults] = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
-
-  const [projects, setProjects] = useState([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [saveMode, setSaveMode] = useState('existing');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [savingToProject, setSavingToProject] = useState(false);
-
-  const [saveBehavior, setSaveBehavior] = useState(
-    reopenedCalculationId ? 'update' : 'new'
-  );
-
-  const [newProject, setNewProject] = useState({
-    name: '',
-    notes: '',
-  });
-
-  const cameFromSavedCalculation = useMemo(
-    () => Boolean(reopenedCalculationId),
-    [reopenedCalculationId]
-  );
-
-  const projectLimitReached = !isCompanyPlan && projects.length >= DIY_PROJECT_LIMIT;
 
   const handleCalculate = () => {
     if (!sub.canCalculate) {
@@ -87,18 +91,29 @@ export default function CalculatorWrapper({
   };
 
   const handleExportPDF = () => {
-    if (!sub.canCalculate) {
-      setShowPaywall(true);
-      return;
-    }
-
     if (!results) return;
 
-    const rows = results
-      .map(
-        (r) =>
-          `<tr><td>${r.material}</td><td style="text-align:right;font-weight:600">${r.quantity}</td><td>${r.unit}</td><td style="color:#666">${r.notes || ''}</td></tr>`
-      )
+    const groupedRows = groupResults(results)
+      .map(([groupName, rows]) => {
+        const rowsHtml = rows
+          .map(
+            (r) => `
+              <tr>
+                <td>${escapeHtml(r.material)}</td>
+                <td style="text-align:right;font-weight:600">${escapeHtml(r.quantity)}</td>
+                <td>${escapeHtml(r.unit)}</td>
+                <td style="color:#555">${escapeHtml(r.notes || '')}</td>
+              </tr>`
+          )
+          .join('');
+
+        return `
+          <tr style="background:#eef2f7;font-weight:700;">
+            <td colspan="4">${groupName}</td>
+          </tr>
+          ${rowsHtml}
+        `;
+      })
       .join('');
 
     const html = `
@@ -106,24 +121,20 @@ export default function CalculatorWrapper({
         <head>
           <title>${title}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
-            h1 { font-size: 22px; margin-bottom: 4px; }
-            p.sub { color: #666; font-size: 13px; margin-bottom: 24px; }
-            table { width: 100%; border-collapse: collapse; font-size: 13px; }
-            th { background: #1e2d4d; color: white; padding: 8px 12px; text-align: left; }
-            th:nth-child(2) { text-align: right; }
-            td { padding: 7px 12px; border-bottom: 1px solid #eee; }
-            tr:nth-child(even) td { background: #f8f9fb; }
-            .footer { margin-top: 28px; font-size: 11px; color: #999; }
+            body { font-family: Arial; padding: 32px; }
+            h1 { margin-bottom: 5px; }
+            .sub { color:#666; margin-bottom:20px; }
+            table { width:100%; border-collapse: collapse; }
+            th { background:#1e2d4d; color:white; padding:8px; }
+            td { padding:8px; border-bottom:1px solid #eee; }
+            .footer { margin-top:25px; font-size:11px; color:#666; line-height:1.6; }
           </style>
         </head>
         <body>
+
           <h1>${title}</h1>
-          <p class="sub">Generated by Buildings Buddy — ${new Date().toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}</p>
+          <p class="sub">Buildings Buddy — Material Estimate & Cost Guide</p>
+
           <table>
             <thead>
               <tr>
@@ -133,406 +144,63 @@ export default function CalculatorWrapper({
                 <th>Notes</th>
               </tr>
             </thead>
-            <tbody>${rows}</tbody>
+            <tbody>
+              ${groupedRows}
+            </tbody>
           </table>
+
           <div class="footer">
-            All quantities include standard wastage allowances. Always verify with your supplier before ordering.
+            <strong>Important:</strong> Material quantities and costs are provided as estimating guidance only.<br><br>
+
+            Quantities may include standard allowances for waste, overlaps and cutting where applicable.
+            Any additional allowance is only applied when selected by the user.<br><br>
+
+            Material prices are based on typical UK supply rates and may vary by supplier, region,
+            availability and specification.<br><br>
+
+            Labour, plant, delivery, waste removal, profit, overheads and VAT are not included.<br><br>
+
+            Always verify quantities, specifications and costs against project drawings, site conditions,
+            supplier quotations and current Building Regulations before ordering or commencing work.
           </div>
+
         </body>
-      </html>`;
+      </html>
+    `;
 
     const win = window.open('', '_blank');
-    if (!win) return;
-
     win.document.write(html);
     win.document.close();
-    win.focus();
     win.print();
-    win.close();
   };
-
-  const loadProjects = async () => {
-    if (!user?.id) return;
-
-    setLoadingProjects(true);
-
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, calculator_type')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Failed to load projects for save dialog:', error);
-        setProjects([]);
-        return;
-      }
-
-      setProjects(data || []);
-    } catch (error) {
-      console.error('Unexpected project load error:', error);
-      setProjects([]);
-    } finally {
-      setLoadingProjects(false);
-    }
-  };
-
-  useEffect(() => {
-    if (saveDialogOpen) {
-      if (reopenedProjectId) {
-        setSelectedProjectId(reopenedProjectId);
-      }
-
-      if (cameFromSavedCalculation) {
-        setSaveBehavior('update');
-      } else {
-        loadProjects();
-      }
-    }
-  }, [saveDialogOpen, user?.id, reopenedProjectId, cameFromSavedCalculation]);
-
-  useEffect(() => {
-    if (saveDialogOpen && saveBehavior === 'new') {
-      loadProjects();
-    }
-  }, [saveBehavior, saveDialogOpen]);
-
-  const createProjectAndReturnId = async () => {
-    if (!user?.id || !newProject.name.trim()) return null;
-
-    if (!isCompanyPlan && projects.length >= DIY_PROJECT_LIMIT) {
-      toast.error(`DIY plan is limited to ${DIY_PROJECT_LIMIT} projects. Upgrade to Company for unlimited projects.`);
-      return null;
-    }
-
-    const payload = {
-      user_id: user.id,
-      team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-      name: newProject.name.trim(),
-      calculator_type: calcType || title,
-      notes: newProject.notes.trim() || null,
-    };
-
-    const { data, error } = await supabase
-      .from('projects')
-      .insert(payload)
-      .select('id')
-      .single();
-
-    if (error) {
-      console.error('Failed to create project from save dialog:', error);
-      toast.error('Could not create project.');
-      return null;
-    }
-
-    return data?.id || null;
-  };
-
-  const handleSaveToProject = async () => {
-    if (!user?.id || !results) return;
-
-    setSavingToProject(true);
-
-    try {
-      let projectId = reopenedProjectId || selectedProjectId;
-
-      if (saveBehavior === 'new') {
-        projectId = selectedProjectId;
-
-        if (saveMode === 'new') {
-          projectId = await createProjectAndReturnId();
-          if (!projectId) {
-            setSavingToProject(false);
-            return;
-          }
-        }
-
-        if (!projectId) {
-          setSavingToProject(false);
-          return;
-        }
-      }
-
-      const payload =
-        typeof getSavePayload === 'function'
-          ? getSavePayload()
-          : null;
-
-      const inputsToSave = payload?.inputs || null;
-      const resultsToSave = payload?.results || results;
-
-      if (saveBehavior === 'update' && reopenedCalculationId) {
-        const { error } = await supabase
-          .from('calculations')
-          .update({
-            project_id: projectId,
-            team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-            calculator_type: calcType || title,
-            inputs: inputsToSave,
-            results: resultsToSave,
-          })
-          .eq('id', reopenedCalculationId)
-          .eq('user_id', user.id);
-
-        if (error) {
-          console.error('Failed to update calculation:', error);
-          toast.error('Could not update calculation.');
-          setSavingToProject(false);
-          return;
-        }
-      } else {
-        const { error } = await supabase.from('calculations').insert({
-          project_id: projectId,
-          user_id: user.id,
-          team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-          calculator_type: calcType || title,
-          inputs: inputsToSave,
-          results: resultsToSave,
-        });
-
-        if (error) {
-          console.error('Failed to save calculation:', error);
-          toast.error('Could not save calculation.');
-          setSavingToProject(false);
-          return;
-        }
-      }
-
-      setSaveDialogOpen(false);
-      setSelectedProjectId('');
-      setSaveMode('existing');
-      setSaveBehavior(cameFromSavedCalculation ? 'update' : 'new');
-      setNewProject({ name: '', notes: '' });
-
-      navigate(`/projects/${projectId}`);
-    } catch (error) {
-      console.error('Unexpected save calculation error:', error);
-      toast.error('Could not save calculation.');
-    } finally {
-      setSavingToProject(false);
-    }
-  };
-
-  const saveButtonLabel =
-    saveBehavior === 'update' ? 'Update Calculation' : 'Save Calculation';
 
   return (
     <div>
-      <Link
-        to="/calculators"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6 gap-1"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Calculators
+      <Link to="/calculators" className="mb-4 flex items-center text-sm">
+        <ArrowLeft className="w-4 h-4 mr-1" /> Back
       </Link>
 
       <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle className="flex items-center gap-3 font-heading">
-            {Icon && <Icon className="w-6 h-6 text-accent" />}
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {Icon && <Icon className="w-5 h-5" />}
             {title}
           </CardTitle>
         </CardHeader>
 
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="space-y-4">
           {children}
 
-          {cameFromSavedCalculation && (
-            <div className="rounded-lg border bg-accent/5 border-accent/20 p-3">
-              <p className="text-sm font-medium">
-                Editing saved calculation
-                {reopenedProjectName ? ` from ${reopenedProjectName}` : ''}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Recalculate, then update this saved calculation or save a new copy.
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleCalculate}
-              size="lg"
-              className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
-            >
+          <div className="flex gap-2">
+            <Button onClick={handleCalculate}>
               Calculate Materials
             </Button>
 
             {results && (
               <>
-                <Button
-                  onClick={handleExportPDF}
-                  size="lg"
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <FileDown className="w-4 h-4" /> Export PDF
+                <Button variant="outline" onClick={handleExportPDF}>
+                  <FileDown className="w-4 h-4 mr-1" /> Export PDF
                 </Button>
-
-                <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" variant="outline" className="gap-2">
-                      <Save className="w-4 h-4" /> Save to Project
-                    </Button>
-                  </DialogTrigger>
-
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Save Calculation</DialogTitle>
-                      <DialogDescription>
-                        Save this calculator result to a project.
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 pt-2">
-                      {!isCompanyPlan && (
-                        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                          DIY project usage: {projects.length} / {DIY_PROJECT_LIMIT}
-                        </div>
-                      )}
-
-                      {cameFromSavedCalculation && (
-                        <div className="space-y-2">
-                          <Label>Save Method</Label>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant={saveBehavior === 'update' ? 'default' : 'outline'}
-                              onClick={() => setSaveBehavior('update')}
-                              className="flex-1"
-                            >
-                              Update Existing
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={saveBehavior === 'new' ? 'default' : 'outline'}
-                              onClick={() => setSaveBehavior('new')}
-                              className="flex-1"
-                            >
-                              Save as New
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {saveBehavior === 'update' ? (
-                        <div className="rounded-lg border bg-muted/30 p-3">
-                          <p className="text-sm font-medium">Updating existing calculation</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {reopenedProjectName
-                              ? `This will update the saved calculation in project: ${reopenedProjectName}`
-                              : 'This will update the saved calculation in its current project.'}
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant={saveMode === 'existing' ? 'default' : 'outline'}
-                              onClick={() => setSaveMode('existing')}
-                              className="flex-1"
-                            >
-                              Existing Project
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={saveMode === 'new' ? 'default' : 'outline'}
-                              onClick={() => setSaveMode('new')}
-                              disabled={projectLimitReached}
-                              className="flex-1"
-                            >
-                              New Project
-                            </Button>
-                          </div>
-
-                          {projectLimitReached && saveMode === 'new' && (
-                            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-                              DIY plan is limited to {DIY_PROJECT_LIMIT} projects. Upgrade to Company for unlimited projects.
-                            </div>
-                          )}
-
-                          {saveMode === 'existing' ? (
-                            <div className="space-y-2">
-                              <Label>Select Project</Label>
-                              <Select
-                                value={selectedProjectId}
-                                onValueChange={setSelectedProjectId}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Choose a project" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {loadingProjects ? (
-                                    <SelectItem value="loading" disabled>
-                                      Loading projects...
-                                    </SelectItem>
-                                  ) : projects.length === 0 ? (
-                                    <SelectItem value="none" disabled>
-                                      No projects available
-                                    </SelectItem>
-                                  ) : (
-                                    projects.map((project) => (
-                                      <SelectItem key={project.id} value={project.id}>
-                                        {project.name}
-                                      </SelectItem>
-                                    ))
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="space-y-2">
-                                <Label>Project Name</Label>
-                                <Input
-                                  placeholder="e.g. Kitchen Extension"
-                                  value={newProject.name}
-                                  onChange={(e) =>
-                                    setNewProject((prev) => ({
-                                      ...prev,
-                                      name: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>Notes (optional)</Label>
-                                <Input
-                                  placeholder="Add any notes..."
-                                  value={newProject.notes}
-                                  onChange={(e) =>
-                                    setNewProject((prev) => ({
-                                      ...prev,
-                                      notes: e.target.value,
-                                    }))
-                                  }
-                                />
-                              </div>
-                            </>
-                          )}
-                        </>
-                      )}
-
-                      <Button
-                        onClick={handleSaveToProject}
-                        disabled={
-                          savingToProject ||
-                          (saveBehavior === 'new' &&
-                            saveMode === 'existing' &&
-                            !selectedProjectId) ||
-                          (saveBehavior === 'new' &&
-                            saveMode === 'new' &&
-                            (!newProject.name.trim() || projectLimitReached))
-                        }
-                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
-                      >
-                        {savingToProject ? 'Saving...' : saveButtonLabel}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
               </>
             )}
           </div>
