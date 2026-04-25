@@ -351,12 +351,11 @@ if (saveBehavior === 'update' && reopenedCalculationId) {
 const { error } = await supabase
 .from('calculations')
 .update({
-project_id: projectId,
-team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-calculator_type: calcType || title,
-inputs: inputsToSave,
-results: resultsToSave,
-updated_at: new Date().toISOString(),
+  project_id: projectId,
+  team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+  calculator_type: calcType || title,
+  inputs: inputsToSave,
+  results: resultsToSave,
 })
 .eq('id', reopenedCalculationId)
 .eq('user_id', user.id);
