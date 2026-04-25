@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Building2,
   Users,
+  Menu,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSubscription } from '@/lib/subscriptionContext';
@@ -31,16 +32,29 @@ export default function Sidebar({ collapsed, setCollapsed }) {
   ];
 
   const handleNavClick = () => {
-    if (isMobile && typeof setCollapsed === 'function') {
+    if (isMobile) {
       setCollapsed(true);
     }
   };
+
+  if (isMobile && collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setCollapsed(false)}
+        className="fixed top-4 left-4 z-50 w-11 h-11 rounded-lg bg-sidebar border border-sidebar-border shadow-md flex items-center justify-center text-sidebar-foreground"
+        aria-label="Open menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+    );
+  }
 
   return (
     <aside
       className={cn(
         'fixed left-0 top-0 h-full bg-sidebar border-r border-sidebar-border z-40 flex flex-col transition-all duration-300',
-        collapsed ? 'w-[68px]' : 'w-[240px]'
+        isMobile ? 'w-[240px]' : collapsed ? 'w-[68px]' : 'w-[240px]'
       )}
     >
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
@@ -48,7 +62,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
           <Building2 className="w-5 h-5 text-sidebar-primary-foreground" />
         </div>
 
-        {!collapsed && (
+        {(!collapsed || isMobile) && (
           <span className="font-heading font-bold text-lg text-sidebar-foreground whitespace-nowrap">
             Buildings Buddy
           </span>
@@ -78,13 +92,13 @@ export default function Sidebar({ collapsed, setCollapsed }) {
                 )}
               />
 
-              {!collapsed && <span>{item.label}</span>}
+              {(!collapsed || isMobile) && <span>{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {!collapsed && sub.status === 'trial' && (
+      {(!collapsed || isMobile) && sub.status === 'trial' && (
         <div className="mx-3 mb-3 p-3 rounded-lg bg-sidebar-primary/10 border border-sidebar-primary/20">
           <p className="text-xs font-semibold text-sidebar-primary">
             {sub.trialDaysLeft} days left on trial
