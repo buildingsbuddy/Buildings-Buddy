@@ -127,6 +127,16 @@ return new Date(subscription.trial_end_date) > new Date();
 return false;
 }
 
+function normaliseSavedResults(savedResults) {
+if (Array.isArray(savedResults)) return savedResults;
+
+if (savedResults && typeof savedResults === 'object') {
+if (Array.isArray(savedResults.items)) return savedResults.items;
+}
+
+return null;
+}
+
 export default function CalculatorWrapper({
 title,
 icon: Icon,
@@ -143,12 +153,15 @@ const sub = useSubscription();
 const reopenedCalculationId = location.state?.calculationId || null;
 const reopenedProjectId = location.state?.projectId || null;
 const reopenedProjectName = location.state?.projectName || '';
+const reopenedSavedResults = normaliseSavedResults(location.state?.savedResults);
 
 const isCompanyPlan =
 sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
 
-const [results, setResults] = useState(null);
-const [includePricing, setIncludePricing] = useState(false);
+const [results, setResults] = useState(() => reopenedSavedResults || null);
+const [includePricing, setIncludePricing] = useState(() =>
+Boolean(location.state?.prefillInputs?.includePricing)
+);
 const [showPaywall, setShowPaywall] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(false);
 
@@ -156,7 +169,7 @@ const [projects, setProjects] = useState([]);
 const [loadingProjects, setLoadingProjects] = useState(false);
 const [saveDialogOpen, setSaveDialogOpen] = useState(false);
 const [saveMode, setSaveMode] = useState('existing');
-const [selectedProjectId, setSelectedProjectId] = useState('');
+const [selectedProjectId, setSelectedProjectId] = useState(reopenedProjectId || '');
 const [savingToProject, setSavingToProject] = useState(false);
 
 const [saveBehavior, setSaveBehavior] = useState(
@@ -168,10 +181,14 @@ name: '',
 notes: '',
 });
 
-const cameFromSavedCalculation = useMemo(
-() => Boolean(reopenedCalculationId),
-[reopenedCalculationId]
-);
+const cameFromSavedCalculation = Boolean(reopenedCalculationId);
+
+useEffect(() => {
+if (reopenedCalculationId) {
+setSaveBehavior('update');
+setSelectedProjectId(reopenedProjectId || '');
+}
+}, [reopenedCalculationId, reopenedProjectId]);
 
 const pricedData = useMemo(() => {
 if (!results) return { items: [], total: 0 };
@@ -201,6 +218,10 @@ const calcResults = onCalculate();
 if (calcResults) {
 setResults(calcResults);
 setIncludePricing(false);
+
+if (reopenedCalculationId) {
+setSaveBehavior('update');
+}
 }
 } finally {
 setCheckingAccess(false);
@@ -235,24 +256,18 @@ setLoadingProjects(false);
 };
 
 useEffect(() => {
-if (saveDialogOpen) {
+if (!saveDialogOpen) return;
+
 if (reopenedProjectId) {
 setSelectedProjectId(reopenedProjectId);
 }
 
-if (cameFromSavedCalculation) {
+if (reopenedCalculationId) {
 setSaveBehavior('update');
-} else {
-loadProjects();
 }
-}
-}, [saveDialogOpen, user?.id, reopenedProjectId, cameFromSavedCalculation]);
 
-useEffect(() => {
-if (saveDialogOpen && saveBehavior === 'new') {
 loadProjects();
-}
-}, [saveBehavior, saveDialogOpen]);
+}, [saveDialogOpen, user?.id, reopenedProjectId, reopenedCalculationId]);
 
 const createProjectAndReturnId = async () => {
 if (!user?.id || !newProject.name.trim()) return null;
@@ -308,9 +323,16 @@ return;
 }
 
 if (!projectId) {
+toast.error('Please choose a project.');
 setSavingToProject(false);
 return;
 }
+}
+
+if (saveBehavior === 'update' && !reopenedCalculationId) {
+toast.error('No saved calculation selected to update.');
+setSavingToProject(false);
+return;
 }
 
 const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
@@ -318,18 +340,12 @@ const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
 const inputsToSave = {
 ...(payload?.inputs || {}),
 includePricing,
+pricingTotal: includePricing ? pricedData.total : null,
 };
 
 const resultsToSave = includePricing
-? {
-items: pricedData.items,
-pricingTotal: pricedData.total,
-pricingIncluded: true,
-}
-: {
-items: payload?.results || results,
-pricingIncluded: false,
-};
+? pricedData.items
+: payload?.results || results;
 
 if (saveBehavior === 'update' && reopenedCalculationId) {
 const { error } = await supabase
@@ -374,9 +390,9 @@ toast.success('Calculation saved.');
 }
 
 setSaveDialogOpen(false);
-setSelectedProjectId('');
+setSelectedProjectId(projectId || '');
 setSaveMode('existing');
-setSaveBehavior(cameFromSavedCalculation ? 'update' : 'new');
+setSaveBehavior(reopenedCalculationId ? 'update' : 'new');
 setNewProject({ name: '', notes: '' });
 
 navigate(`/projects/${projectId}`);
@@ -589,6 +605,7 @@ className="flex-1"
 >
 Update Existing
 </Button>
+
 <Button
 type="button"
 variant={saveBehavior === 'new' ? 'default' : 'outline'}
@@ -623,6 +640,7 @@ className="flex-1"
 >
 Existing Project
 </Button>
+
 <Button
 type="button"
 variant={saveMode === 'new' ? 'default' : 'outline'}
@@ -644,6 +662,7 @@ onValueChange={setSelectedProjectId}
 <SelectTrigger>
 <SelectValue placeholder="Choose a project" />
 </SelectTrigger>
+
 <SelectContent>
 {loadingProjects ? (
 <SelectItem value="loading" disabled>

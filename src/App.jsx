@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -120,6 +120,7 @@ function InviteBanner() {
 
 function CompanyOnlyRoute({ children }) {
   const sub = useSubscription();
+
   const hasCompanyAccess =
     sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
 
@@ -209,7 +210,8 @@ function App() {
         <Router>
           <AppRoutes />
         </Router>
-        <Toaster />
+
+        <Toaster richColors position="top-right" />
       </QueryClientProvider>
     </AuthProvider>
   );
