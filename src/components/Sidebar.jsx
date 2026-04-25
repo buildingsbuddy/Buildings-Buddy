@@ -37,15 +37,14 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     }
   };
 
+  // MOBILE CLOSED STATE → SHOW MENU BUTTON ONLY
   if (isMobile && collapsed) {
     return (
       <button
-        type="button"
         onClick={() => setCollapsed(false)}
-        className="fixed top-4 left-4 z-50 w-11 h-11 rounded-lg bg-sidebar border border-sidebar-border shadow-md flex items-center justify-center text-sidebar-foreground"
-        aria-label="Open menu"
+        className="fixed top-4 left-4 z-50 w-11 h-11 rounded-lg bg-sidebar border border-sidebar-border shadow-md flex items-center justify-center"
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="w-5 h-5 text-sidebar-foreground" />
       </button>
     );
   }
@@ -58,12 +57,12 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       )}
     >
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-        <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
           <Building2 className="w-5 h-5 text-sidebar-primary-foreground" />
         </div>
 
         {(!collapsed || isMobile) && (
-          <span className="font-heading font-bold text-lg text-sidebar-foreground whitespace-nowrap">
+          <span className="font-heading font-bold text-lg">
             Buildings Buddy
           </span>
         )}
@@ -79,52 +78,25 @@ export default function Sidebar({ collapsed, setCollapsed }) {
               to={item.path}
               onClick={handleNavClick}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium',
                 isActive
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50'
               )}
             >
-              <item.icon
-                className={cn(
-                  'w-5 h-5 shrink-0',
-                  isActive && 'text-sidebar-primary'
-                )}
-              />
-
+              <item.icon className="w-5 h-5" />
               {(!collapsed || isMobile) && <span>{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {(!collapsed || isMobile) && sub.status === 'trial' && (
-        <div className="mx-3 mb-3 p-3 rounded-lg bg-sidebar-primary/10 border border-sidebar-primary/20">
-          <p className="text-xs font-semibold text-sidebar-primary">
-            {sub.trialDaysLeft} days left on trial
-          </p>
-
-          <Link
-            to="/billing"
-            onClick={handleNavClick}
-            className="text-xs text-sidebar-foreground/60 hover:text-sidebar-primary mt-1 block"
-          >
-            Upgrade now →
-          </Link>
-        </div>
-      )}
-
       {!isMobile && (
         <button
-          type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="mx-3 mb-4 p-2 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors flex items-center justify-center"
+          className="mx-3 mb-4 p-2 rounded-lg hover:bg-sidebar-accent/50"
         >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
-            <ChevronLeft className="w-4 h-4" />
-          )}
+          {collapsed ? <ChevronRight /> : <ChevronLeft />}
         </button>
       )}
     </aside>

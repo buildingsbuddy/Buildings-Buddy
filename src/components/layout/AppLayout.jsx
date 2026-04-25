@@ -4,20 +4,17 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function AppLayout({ children }) {
   const isMobile = useIsMobile();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
-    if (isMobile) {
-      setCollapsed(true);
-    } else {
-      setCollapsed(false);
-    }
+    setCollapsed(isMobile);
   }, [isMobile]);
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
+      {/* FIX: overlay BELOW sidebar but ABOVE content */}
       {isMobile && !collapsed && (
         <div
           onClick={() => setCollapsed(true)}
@@ -26,7 +23,7 @@ export default function AppLayout({ children }) {
       )}
 
       <main
-        className={`flex-1 min-h-screen transition-all duration-300 ${
+        className={`flex-1 transition-all duration-300 ${
           isMobile ? 'ml-0' : collapsed ? 'ml-[68px]' : 'ml-[240px]'
         }`}
       >
