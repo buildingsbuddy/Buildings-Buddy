@@ -333,60 +333,113 @@ export function SubscriptionProvider({ children }) {
     !subState.stripeSubscriptionId;
 
   const startTrial = async (plan = 'diy') => {
-    if (!user?.id) return;
-
-    const { data: existingSubscription, error: existingError } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (existingError) {
-      console.error('Failed to check existing subscription before trial:', existingError);
-      return;
+    if (!user?.id) {
+      return {
+        success: false,
+        error: 'You must be logged in to start a trial.',
+      };
     }
 
-    if (
-      existingSubscription?.status === 'active' ||
-      existingSubscription?.status === 'trial' ||
-      existingSubscription?.trial_end_date ||
-      existingSubscription?.stripe_subscription_id
-    ) {
-      console.warn('Trial not started because user already has subscription/trial history.');
-      await loadSubscription();
-      return;
-    }
+    const safePlan = plan === 'company' ? 'company' : 'diy';
 
-    if (plan === 'company') {
-      const team = await ensureCompanyTeam();
+    try {
+      const { data: existingSubscription, error: existingError } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (!team) {
-        console.error('Company trial could not start because team creation failed.');
-        return;
+      if (existingError) {
+        console.error('Failed to check existing subscription before trial:', existingError);
+        return {
+          success: false,
+          error: 'Could not check your subscription. Please try again.',
+        };
       }
+
+      if (existingSubscription?.status === 'active') {
+        await loadSubscription();
+        return {
+          success: false,
+          error: 'You already have an active subscription.',
+        };
+      }
+
+      if (
+        existingSubscription?.status === 'trial' &&
+        calculateTrialDaysLeft(existingSubscription.trial_end_date) > 0
+      ) {
+        await loadSubscription();
+        return {
+          success: true,
+          alreadyActive: true,
+          message: 'Your trial is already active.',
+        };
+      }
+
+      if (
+        existingSubscription?.trial_end_date ||
+        existingSubscription?.stripe_subscription_id
+      ) {
+        await loadSubscription();
+        return {
+          success: false,
+          error: 'Your free trial has already been used. Please choose a paid plan.',
+        };
+      }
+
+      if (safePlan === 'company') {
+        const team = await ensureCompanyTeam();
+
+        if (!team) {
+          return {
+            success: false,
+            error: 'Could not create your company team. Please try again.',
+          };
+        }
+      }
+
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + TRIAL_DAYS);
+
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .upsert(
+          {
+            user_id: user.id,
+            status: 'trial',
+            plan: safePlan,
+            billing_cycle: null,
+            trial_end_date: endDate.toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' }
+        )
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('Failed to start trial:', error);
+        return {
+          success: false,
+          error: 'Could not start your trial. Please try again.',
+        };
+      }
+
+      const teamMembership = await loadTeamMembership();
+      setSubState(normaliseSubscription(data, teamMembership));
+
+      return {
+        success: true,
+        message: 'Your 7-day free trial has started.',
+      };
+    } catch (error) {
+      console.error('Unexpected start trial error:', error);
+      return {
+        success: false,
+        error: 'Could not start your trial. Please try again.',
+      };
     }
-
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + TRIAL_DAYS);
-
-    const { error } = await supabase.from('subscriptions').upsert(
-      {
-        user_id: user.id,
-        status: 'trial',
-        plan,
-        billing_cycle: null,
-        trial_end_date: endDate.toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-    if (error) {
-      console.error('Failed to start trial:', error);
-      return;
-    }
-
-    await loadSubscription();
   };
 
   const activateSubscription = async (plan = 'diy', billingCycle = 'monthly') => {

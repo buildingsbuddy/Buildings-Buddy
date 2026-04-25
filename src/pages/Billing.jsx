@@ -241,20 +241,26 @@ export default function Billing() {
     }
   };
 
-  const handleStartTrial = async (planId) => {
-    setProcessing(true);
+ const handleStartTrial = async (planId) => {
+  setProcessing(true);
 
-    try {
-      await sub.startTrial(planId);
-      await sub.reload();
-      toast.success('Your 7-day free trial has started.');
-    } catch (error) {
-      console.error(error);
-      toast.error('Could not start free trial.');
-    } finally {
-      setProcessing(false);
+  try {
+    const result = await sub.startTrial(planId);
+
+    if (!result?.success) {
+      toast.error(result?.error || 'Could not start free trial.');
+      return;
     }
-  };
+
+    await sub.reload();
+    toast.success(result.message || 'Your 7-day free trial has started.');
+  } catch (error) {
+    console.error(error);
+    toast.error('Could not start free trial.');
+  } finally {
+    setProcessing(false);
+  }
+};
 
   const handleCheckout = async (planId, billingCycle) => {
     setProcessing(true);
