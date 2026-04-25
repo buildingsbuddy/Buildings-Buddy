@@ -1,12 +1,40 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, FileDown, ClipboardList, PoundSterling } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+ArrowLeft,
+FileDown,
+ClipboardList,
+PoundSterling,
+Save,
+} from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useSubscription } from '@/lib/subscriptionContext';
 import PaywallModal from '@/components/PaywallModal';
 import CalculatorResultsTable from './CalculatorResultsTable';
 import { addPricing } from '@/lib/pricingEngine';
+import { toast } from 'sonner';
+import {
+Dialog,
+DialogContent,
+DialogDescription,
+DialogHeader,
+DialogTitle,
+DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+Select,
+SelectContent,
+SelectItem,
+SelectTrigger,
+SelectValue,
+} from '@/components/ui/select';
+
+const DIY_PROJECT_LIMIT = 20;
 
 function escapeHtml(value) {
 return String(value ?? '')
@@ -90,7 +118,6 @@ return Object.entries(groups).filter(([, rows]) => rows.length > 0);
 
 function hasAccessFromSubscription(subscription) {
 if (!subscription) return false;
-
 if (subscription.status === 'active') return true;
 
 if (subscription.status === 'trial' && subscription.trial_end_date) {
@@ -105,13 +132,46 @@ title,
 icon: Icon,
 children,
 onCalculate,
+calcType,
+getSavePayload,
 }) {
+const navigate = useNavigate();
+const location = useLocation();
+const { user } = useAuth();
 const sub = useSubscription();
+
+const reopenedCalculationId = location.state?.calculationId || null;
+const reopenedProjectId = location.state?.projectId || null;
+const reopenedProjectName = location.state?.projectName || '';
+
+const isCompanyPlan =
+sub.plan === 'company' && (sub.status === 'trial' || sub.status === 'active');
 
 const [results, setResults] = useState(null);
 const [includePricing, setIncludePricing] = useState(false);
 const [showPaywall, setShowPaywall] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(false);
+
+const [projects, setProjects] = useState([]);
+const [loadingProjects, setLoadingProjects] = useState(false);
+const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+const [saveMode, setSaveMode] = useState('existing');
+const [selectedProjectId, setSelectedProjectId] = useState('');
+const [savingToProject, setSavingToProject] = useState(false);
+
+const [saveBehavior, setSaveBehavior] = useState(
+reopenedCalculationId ? 'update' : 'new'
+);
+
+const [newProject, setNewProject] = useState({
+name: '',
+notes: '',
+});
+
+const cameFromSavedCalculation = useMemo(
+() => Boolean(reopenedCalculationId),
+[reopenedCalculationId]
+);
 
 const pricedData = useMemo(() => {
 if (!results) return { items: [], total: 0 };
@@ -120,6 +180,7 @@ return addPricing(results);
 
 const displayResults = includePricing ? pricedData.items : results;
 const groupedResults = useMemo(() => groupResults(results || []), [results]);
+const projectLimitReached = !isCompanyPlan && projects.length >= DIY_PROJECT_LIMIT;
 
 const handleCalculate = async () => {
 setCheckingAccess(true);
@@ -136,12 +197,194 @@ return;
 }
 
 const calcResults = onCalculate();
+
 if (calcResults) {
 setResults(calcResults);
 setIncludePricing(false);
 }
 } finally {
 setCheckingAccess(false);
+}
+};
+
+const loadProjects = async () => {
+if (!user?.id) return;
+
+setLoadingProjects(true);
+
+try {
+const { data, error } = await supabase
+.from('projects')
+.select('id, name, calculator_type')
+.eq('user_id', user.id)
+.order('created_at', { ascending: false });
+
+if (error) {
+console.error('Failed to load projects:', error);
+setProjects([]);
+return;
+}
+
+setProjects(data || []);
+} catch (error) {
+console.error('Unexpected project load error:', error);
+setProjects([]);
+} finally {
+setLoadingProjects(false);
+}
+};
+
+useEffect(() => {
+if (saveDialogOpen) {
+if (reopenedProjectId) {
+setSelectedProjectId(reopenedProjectId);
+}
+
+if (cameFromSavedCalculation) {
+setSaveBehavior('update');
+} else {
+loadProjects();
+}
+}
+}, [saveDialogOpen, user?.id, reopenedProjectId, cameFromSavedCalculation]);
+
+useEffect(() => {
+if (saveDialogOpen && saveBehavior === 'new') {
+loadProjects();
+}
+}, [saveBehavior, saveDialogOpen]);
+
+const createProjectAndReturnId = async () => {
+if (!user?.id || !newProject.name.trim()) return null;
+
+if (!isCompanyPlan && projects.length >= DIY_PROJECT_LIMIT) {
+toast.error(
+`DIY plan is limited to ${DIY_PROJECT_LIMIT} projects. Upgrade to Company for unlimited projects.`
+);
+return null;
+}
+
+const payload = {
+user_id: user.id,
+team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+name: newProject.name.trim(),
+calculator_type: calcType || title,
+notes: newProject.notes.trim() || null,
+};
+
+const { data, error } = await supabase
+.from('projects')
+.insert(payload)
+.select('id')
+.single();
+
+if (error) {
+console.error('Failed to create project:', error);
+toast.error('Could not create project.');
+return null;
+}
+
+return data?.id || null;
+};
+
+const handleSaveToProject = async () => {
+if (!user?.id || !results) return;
+
+setSavingToProject(true);
+
+try {
+let projectId = reopenedProjectId || selectedProjectId;
+
+if (saveBehavior === 'new') {
+projectId = selectedProjectId;
+
+if (saveMode === 'new') {
+projectId = await createProjectAndReturnId();
+
+if (!projectId) {
+setSavingToProject(false);
+return;
+}
+}
+
+if (!projectId) {
+setSavingToProject(false);
+return;
+}
+}
+
+const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
+
+const inputsToSave = {
+...(payload?.inputs || {}),
+includePricing,
+};
+
+const resultsToSave = includePricing
+? {
+items: pricedData.items,
+pricingTotal: pricedData.total,
+pricingIncluded: true,
+}
+: {
+items: payload?.results || results,
+pricingIncluded: false,
+};
+
+if (saveBehavior === 'update' && reopenedCalculationId) {
+const { error } = await supabase
+.from('calculations')
+.update({
+project_id: projectId,
+team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+calculator_type: calcType || title,
+inputs: inputsToSave,
+results: resultsToSave,
+updated_at: new Date().toISOString(),
+})
+.eq('id', reopenedCalculationId)
+.eq('user_id', user.id);
+
+if (error) {
+console.error('Failed to update calculation:', error);
+toast.error('Could not update calculation.');
+setSavingToProject(false);
+return;
+}
+
+toast.success('Calculation updated.');
+} else {
+const { error } = await supabase.from('calculations').insert({
+project_id: projectId,
+user_id: user.id,
+team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+calculator_type: calcType || title,
+inputs: inputsToSave,
+results: resultsToSave,
+});
+
+if (error) {
+console.error('Failed to save calculation:', error);
+toast.error('Could not save calculation.');
+setSavingToProject(false);
+return;
+}
+
+toast.success('Calculation saved.');
+}
+
+setSaveDialogOpen(false);
+setSelectedProjectId('');
+setSaveMode('existing');
+setSaveBehavior(cameFromSavedCalculation ? 'update' : 'new');
+setNewProject({ name: '', notes: '' });
+
+navigate(`/projects/${projectId}`);
+} catch (error) {
+console.error('Unexpected save error:', error);
+toast.error('Could not save calculation.');
+} finally {
+setSavingToProject(false);
 }
 };
 
@@ -251,6 +494,9 @@ win.focus();
 win.print();
 };
 
+const saveButtonLabel =
+saveBehavior === 'update' ? 'Update Calculation' : 'Save Calculation';
+
 return (
 <div>
 <Link
@@ -271,6 +517,18 @@ className="inline-flex items-center text-sm text-muted-foreground hover:text-for
 <CardContent className="space-y-4">
 {children}
 
+{cameFromSavedCalculation && (
+<div className="rounded-lg border bg-accent/5 border-accent/20 p-3">
+<p className="text-sm font-medium">
+Editing saved calculation
+{reopenedProjectName ? ` from ${reopenedProjectName}` : ''}
+</p>
+<p className="text-xs text-muted-foreground mt-1">
+Recalculate, then update this saved calculation or save a new copy.
+</p>
+</div>
+)}
+
 <div className="flex flex-wrap gap-2">
 <Button onClick={handleCalculate} disabled={checkingAccess}>
 {checkingAccess ? 'Checking...' : 'Calculate Materials'}
@@ -290,6 +548,173 @@ className="gap-2"
 <Button variant="outline" onClick={handleExportPDF}>
 <FileDown className="w-4 h-4 mr-1" /> Export PDF
 </Button>
+
+<Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+<DialogTrigger asChild>
+<Button variant="outline" className="gap-2">
+<Save className="w-4 h-4" /> Save to Project
+</Button>
+</DialogTrigger>
+
+<DialogContent>
+<DialogHeader>
+<DialogTitle>Save Calculation</DialogTitle>
+<DialogDescription>
+Save this calculator result to a project.
+</DialogDescription>
+</DialogHeader>
+
+<div className="space-y-4 pt-2">
+{!isCompanyPlan && (
+<div className="rounded-lg border bg-muted/30 p-3 text-sm">
+DIY project usage: {projects.length} / {DIY_PROJECT_LIMIT}
+</div>
+)}
+
+{includePricing && (
+<div className="rounded-lg border bg-accent/10 border-accent/20 p-3 text-sm">
+This save will include guide material pricing and estimated total.
+</div>
+)}
+
+{cameFromSavedCalculation && (
+<div className="space-y-2">
+<Label>Save Method</Label>
+<div className="flex gap-2">
+<Button
+type="button"
+variant={saveBehavior === 'update' ? 'default' : 'outline'}
+onClick={() => setSaveBehavior('update')}
+className="flex-1"
+>
+Update Existing
+</Button>
+<Button
+type="button"
+variant={saveBehavior === 'new' ? 'default' : 'outline'}
+onClick={() => setSaveBehavior('new')}
+className="flex-1"
+>
+Save as New
+</Button>
+</div>
+</div>
+)}
+
+{saveBehavior === 'update' ? (
+<div className="rounded-lg border bg-muted/30 p-3">
+<p className="text-sm font-medium">
+Updating existing calculation
+</p>
+<p className="text-xs text-muted-foreground mt-1">
+{reopenedProjectName
+? `This will update the saved calculation in project: ${reopenedProjectName}`
+: 'This will update the saved calculation in its current project.'}
+</p>
+</div>
+) : (
+<>
+<div className="flex gap-2">
+<Button
+type="button"
+variant={saveMode === 'existing' ? 'default' : 'outline'}
+onClick={() => setSaveMode('existing')}
+className="flex-1"
+>
+Existing Project
+</Button>
+<Button
+type="button"
+variant={saveMode === 'new' ? 'default' : 'outline'}
+onClick={() => setSaveMode('new')}
+disabled={projectLimitReached}
+className="flex-1"
+>
+New Project
+</Button>
+</div>
+
+{saveMode === 'existing' ? (
+<div className="space-y-2">
+<Label>Select Project</Label>
+<Select
+value={selectedProjectId}
+onValueChange={setSelectedProjectId}
+>
+<SelectTrigger>
+<SelectValue placeholder="Choose a project" />
+</SelectTrigger>
+<SelectContent>
+{loadingProjects ? (
+<SelectItem value="loading" disabled>
+Loading projects...
+</SelectItem>
+) : projects.length === 0 ? (
+<SelectItem value="none" disabled>
+No projects available
+</SelectItem>
+) : (
+projects.map((project) => (
+<SelectItem key={project.id} value={project.id}>
+{project.name}
+</SelectItem>
+))
+)}
+</SelectContent>
+</Select>
+</div>
+) : (
+<>
+<div className="space-y-2">
+<Label>Project Name</Label>
+<Input
+placeholder="e.g. Kitchen Extension"
+value={newProject.name}
+onChange={(e) =>
+setNewProject((prev) => ({
+...prev,
+name: e.target.value,
+}))
+}
+/>
+</div>
+
+<div className="space-y-2">
+<Label>Notes optional</Label>
+<Input
+placeholder="Add any notes..."
+value={newProject.notes}
+onChange={(e) =>
+setNewProject((prev) => ({
+...prev,
+notes: e.target.value,
+}))
+}
+/>
+</div>
+</>
+)}
+</>
+)}
+
+<Button
+onClick={handleSaveToProject}
+disabled={
+savingToProject ||
+(saveBehavior === 'new' &&
+saveMode === 'existing' &&
+!selectedProjectId) ||
+(saveBehavior === 'new' &&
+saveMode === 'new' &&
+(!newProject.name.trim() || projectLimitReached))
+}
+className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
+>
+{savingToProject ? 'Saving...' : saveButtonLabel}
+</Button>
+</div>
+</DialogContent>
+</Dialog>
 </>
 )}
 </div>
