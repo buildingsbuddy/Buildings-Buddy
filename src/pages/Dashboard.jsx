@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,18 +15,26 @@ import {
   Calendar,
   Download,
   Smartphone,
+  PlayCircle,
+  FileText,
+  PoundSterling,
+  RotateCcw,
 } from 'lucide-react';
 import { useSubscription } from '@/lib/subscriptionContext';
 import { useAuth } from '@/lib/AuthContext';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 
+const CALCULATOR_COUNT = 11;
+
 export default function Dashboard() {
   const sub = useSubscription();
   const { user, profile } = useAuth();
 
   const [projectCount, setProjectCount] = useState(0);
+  const [calculationCount, setCalculationCount] = useState(0);
   const [recentProjects, setRecentProjects] = useState([]);
+  const [recentCalculation, setRecentCalculation] = useState(null);
   const [loadingProjects, setLoadingProjects] = useState(true);
 
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -37,6 +45,8 @@ export default function Dashboard() {
     user?.user_metadata?.full_name ||
     user?.email ||
     'User';
+
+  const firstName = String(displayName).split(' ')[0];
 
   useEffect(() => {
     const standalone =
@@ -68,7 +78,9 @@ export default function Dashboard() {
     const loadDashboardData = async () => {
       if (!user?.id) {
         setProjectCount(0);
+        setCalculationCount(0);
         setRecentProjects([]);
+        setRecentCalculation(null);
         setLoadingProjects(false);
         return;
       }
@@ -76,35 +88,62 @@ export default function Dashboard() {
       setLoadingProjects(true);
 
       try {
-        const { count, error: countError } = await supabase
+        const { count: projectsTotal, error: projectCountError } = await supabase
           .from('projects')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
 
-        if (countError) {
-          console.error('Failed to count projects:', countError);
+        if (projectCountError) {
+          console.error('Failed to count projects:', projectCountError);
         } else {
-          setProjectCount(count || 0);
+          setProjectCount(projectsTotal || 0);
         }
 
-        const { data, error } = await supabase
+        const { count: calculationsTotal, error: calculationCountError } = await supabase
+          .from('calculations')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        if (calculationCountError) {
+          console.error('Failed to count calculations:', calculationCountError);
+        } else {
+          setCalculationCount(calculationsTotal || 0);
+        }
+
+        const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('id, name, calculator_type, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(3);
 
-        if (error) {
-          console.error('Failed to load recent projects:', error);
+        if (projectsError) {
+          console.error('Failed to load recent projects:', projectsError);
           setRecentProjects([]);
-          return;
+        } else {
+          setRecentProjects(projectsData || []);
         }
 
-        setRecentProjects(data || []);
+        const { data: calcData, error: calcError } = await supabase
+          .from('calculations')
+          .select('id, project_id, calculator_type, created_at, projects(name)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (calcError) {
+          console.error('Failed to load recent calculation:', calcError);
+          setRecentCalculation(null);
+        } else {
+          setRecentCalculation(calcData || null);
+        }
       } catch (error) {
-        console.error('Unexpected dashboard project load error:', error);
+        console.error('Unexpected dashboard load error:', error);
         setProjectCount(0);
+        setCalculationCount(0);
         setRecentProjects([]);
+        setRecentCalculation(null);
       } finally {
         setLoadingProjects(false);
       }
@@ -161,6 +200,13 @@ export default function Dashboard() {
   const sc = statusConfig[sub.status] || statusConfig.loading;
   const StatusIcon = sc.icon;
 
+  const lastProject = recentProjects?.[0] || null;
+
+  const recentCalculationLabel = useMemo(() => {
+    if (!recentCalculation?.calculator_type) return 'No saved calculations yet';
+    return recentCalculation.calculator_type.replace(/_/g, ' ');
+  }, [recentCalculation]);
+
   const SummaryCard = ({ to, label, icon: Icon, value, subtext, badge }) => (
     <Link to={to}>
       <Card className="hover:border-accent/30 hover:shadow-md transition-all cursor-pointer h-full">
@@ -194,13 +240,78 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-heading text-2xl md:text-3xl font-bold">
-          Welcome{displayName ? `, ${displayName}` : ''}
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Your construction calculation dashboard
-        </p>
+      <div className="grid lg:grid-cols-[1.5fr_1fr] gap-4">
+        <Card className="border-accent/20 bg-gradient-to-br from-accent/10 via-card to-card overflow-hidden">
+          <CardContent className="p-6 md:p-7">
+            <Badge className="bg-accent text-accent-foreground border-0 mb-4">
+              Buildings Buddy
+            </Badge>
+
+            <h1 className="font-heading text-2xl md:text-4xl font-bold leading-tight">
+              Welcome back, {firstName}
+            </h1>
+
+            <p className="text-muted-foreground mt-2 max-w-2xl">
+              Calculate materials, include UK guide pricing, save estimates to projects
+              and export clean PDFs from one place.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <Link to="/calculators">
+                <Button className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold w-full sm:w-auto">
+                  <PlayCircle className="w-4 h-4 mr-2" />
+                  Start New Calculation
+                </Button>
+              </Link>
+
+              <Link to={lastProject ? `/projects/${lastProject.id}` : '/projects'}>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  {lastProject ? 'Resume Last Project' : 'Create First Project'}
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5 h-full flex flex-col justify-between gap-5">
+            <div>
+              <p className="text-sm text-muted-foreground">Latest activity</p>
+              <p className="font-heading text-lg font-semibold capitalize mt-1">
+                {recentCalculationLabel}
+              </p>
+
+              {recentCalculation?.created_at ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Saved {format(new Date(recentCalculation.created_at), 'dd MMM yyyy HH:mm')}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Run and save your first calculation to see it here.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {recentCalculation?.project_id && (
+                <Link to={`/projects/${recentCalculation.project_id}`}>
+                  <Button variant="outline" className="w-full justify-between">
+                    Continue Project
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
+
+              <Link to="/calculators">
+                <Button variant={recentCalculation?.project_id ? 'ghost' : 'outline'} className="w-full justify-between">
+                  Open Calculators
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {!isStandalone && (
@@ -258,7 +369,7 @@ export default function Dashboard() {
                         {sub.trialDaysLeft} days remaining on your free trial
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Upgrade to keep uninterrupted access to all calculators.
+                        Upgrade to keep uninterrupted access to calculators, guide pricing and saved projects.
                       </p>
                     </>
                   ) : (
@@ -269,7 +380,7 @@ export default function Dashboard() {
                           : 'Your access has expired'}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Subscribe to unlock all material calculations.
+                        Subscribe to unlock material calculations, pricing, PDFs and project saves.
                       </p>
                     </>
                   )}
@@ -286,7 +397,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <SummaryCard to="/billing" label="Subscription" icon={CreditCard} badge />
 
         <SummaryCard
@@ -298,48 +409,79 @@ export default function Dashboard() {
         />
 
         <SummaryCard
+          to="/projects"
+          label="Saved Calculations"
+          icon={FileText}
+          value={loadingProjects ? '...' : calculationCount}
+          subtext="Calculation history"
+        />
+
+        <SummaryCard
           to="/calculators"
           label="Calculators"
           icon={Calculator}
-          value="11"
+          value={CALCULATOR_COUNT}
           subtext="Available tools"
         />
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-heading text-lg font-semibold">Quick Access</h2>
-          <Link
-            to="/calculators"
-            className="text-sm text-accent font-medium hover:underline flex items-center gap-1"
-          >
-            All Calculators <ArrowRight className="w-4 h-4" />
-          </Link>
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-heading text-lg font-semibold">Quick Access</h2>
+            <Link
+              to="/calculators"
+              className="text-sm text-accent font-medium hover:underline flex items-center gap-1"
+            >
+              All Calculators <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Walls', path: '/calculators/wall' },
+              { label: 'Roofing', path: '/calculators/roofing' },
+              { label: 'Concrete Mix', path: '/calculators/concrete' },
+              { label: 'Insulation', path: '/calculators/insulation' },
+              { label: 'Flooring', path: '/calculators/flooring' },
+              { label: 'Drainage', path: '/calculators/drainage' },
+              { label: 'Staircase', path: '/calculators/staircase' },
+              { label: 'Painting', path: '/calculators/painting' },
+            ].map((item) => (
+              <Link key={item.path} to={item.path}>
+                <Card className="hover:border-accent/30 hover:shadow-md transition-all cursor-pointer">
+                  <CardContent className="p-4 text-center">
+                    <p className="font-medium text-sm">{item.label}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Walls', path: '/calculators/wall' },
-            { label: 'Roofing', path: '/calculators/roofing' },
-            { label: 'Concrete Mix', path: '/calculators/concrete' },
-            { label: 'Insulation', path: '/calculators/insulation' },
-            { label: 'Flooring', path: '/calculators/flooring' },
-            { label: 'Drainage', path: '/calculators/drainage' },
-            { label: 'Staircase', path: '/calculators/staircase' },
-            { label: 'Painting', path: '/calculators/painting' },
-          ].map((item) => (
-            <Link key={item.path} to={item.path}>
-              <Card className="hover:border-accent/30 hover:shadow-md transition-all cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <p className="font-medium text-sm">{item.label}</p>
-                </CardContent>
-              </Card>
+        <Card className="border-accent/20">
+          <CardContent className="p-5">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mb-3">
+              <PoundSterling className="w-5 h-5 text-accent" />
+            </div>
+
+            <p className="font-heading font-semibold">Guide pricing included</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Turn on pricing after calculating to estimate material supply costs.
+              Labour, VAT, delivery and overheads are not included.
+            </p>
+
+            <Link to="/calculators" className="block mt-4">
+              <Button variant="outline" className="w-full justify-between">
+                Start Estimate
+                <ArrowRight className="w-4 h-4" />
+              </Button>
             </Link>
-          ))}
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {recentProjects.length > 0 && (
+      {recentProjects.length > 0 ? (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-heading text-lg font-semibold">Recent Projects</h2>
@@ -380,6 +522,22 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <FolderOpen className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <p className="font-heading font-semibold">No projects yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Save your calculations into projects so you can reopen, update and export them later.
+            </p>
+            <Link to="/calculators" className="inline-block mt-4">
+              <Button className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Run First Calculation
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
