@@ -1,243 +1,255 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [pendingTeamInvites, setPendingTeamInvites] = useState([]);
+const [user, setUser] = useState(null);
+const [profile, setProfile] = useState(null);
+const [pendingTeamInvites, setPendingTeamInvites] = useState([]);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
-  const [authError, setAuthError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [appPublicSettings, setAppPublicSettings] = useState(null);
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
+const [authError, setAuthError] = useState(null);
+const [authChecked, setAuthChecked] = useState(false);
+const [appPublicSettings, setAppPublicSettings] = useState(null);
 
-  const loadProfile = async (userId) => {
-    if (!userId) return null;
+const resetAuthState = () => {
+setUser(null);
+setProfile(null);
+setPendingTeamInvites([]);
+setIsAuthenticated(false);
+setAuthChecked(true);
+setIsLoadingAuth(false);
+};
 
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+const loadProfile = async (userId) => {
+if (!userId) return null;
 
-      if (error) {
-        console.error('Failed to load profile:', error);
-        return null;
-      }
+try {
+const { data, error } = await supabase
+.from('profiles')
+.select('*')
+.eq('id', userId)
+.maybeSingle();
 
-      return data || null;
-    } catch (error) {
-      console.error('Unexpected profile load error:', error);
-      return null;
-    }
-  };
+if (error) {
+console.error('Failed to load profile:', error);
+return null;
+}
 
-  const loadPendingTeamInvites = async (email) => {
-    if (!email) {
-      setPendingTeamInvites([]);
-      return [];
-    }
+return data || null;
+} catch (error) {
+console.error('Unexpected profile load error:', error);
+return null;
+}
+};
 
-    try {
-      const { data, error } = await supabase
-        .from('team_invites')
-        .select(`
-          id,
-          team_id,
-          invited_email,
-          role,
-          status,
-          created_at,
-          teams (
-            id,
-            name,
-            owner_id,
-            plan,
-            max_users
-          )
-        `)
-        .eq('status', 'pending')
-        .ilike('invited_email', email);
+const loadPendingTeamInvites = async (email) => {
+if (!email) {
+setPendingTeamInvites([]);
+return [];
+}
 
-      if (error) {
-        console.error('Failed to load pending team invites:', error);
-        setPendingTeamInvites([]);
-        return [];
-      }
+try {
+const { data, error } = await supabase
+.from('team_invites')
+.select(`
+id,
+team_id,
+invited_email,
+role,
+status,
+created_at,
+teams (
+id,
+name,
+owner_id,
+plan,
+max_users
+)
+`)
+.eq('status', 'pending')
+.ilike('invited_email', email);
 
-      setPendingTeamInvites(data || []);
-      return data || [];
-    } catch (error) {
-      console.error('Unexpected pending invite load error:', error);
-      setPendingTeamInvites([]);
-      return [];
-    }
-  };
+if (error) {
+console.error('Failed to load pending team invites:', error);
+setPendingTeamInvites([]);
+return [];
+}
 
-  const loadUserExtras = async (sessionUser) => {
-    if (!sessionUser) return;
+setPendingTeamInvites(data || []);
+return data || [];
+} catch (error) {
+console.error('Unexpected pending invite load error:', error);
+setPendingTeamInvites([]);
+return [];
+}
+};
 
-    try {
-      const [profileData] = await Promise.all([
-        loadProfile(sessionUser.id),
-        loadPendingTeamInvites(sessionUser.email),
-      ]);
+const loadUserExtras = async (sessionUser) => {
+if (!sessionUser) {
+setProfile(null);
+setPendingTeamInvites([]);
+return;
+}
 
-      setProfile(profileData);
-    } catch (error) {
-      console.error('Failed to load user extras:', error);
-      setProfile(null);
-      setPendingTeamInvites([]);
-    }
-  };
+try {
+const [profileData] = await Promise.all([
+loadProfile(sessionUser.id),
+loadPendingTeamInvites(sessionUser.email),
+]);
 
-  const applySessionUser = (sessionUser) => {
-    if (!sessionUser) {
-      setUser(null);
-      setProfile(null);
-      setPendingTeamInvites([]);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setIsLoadingAuth(false);
-      return;
-    }
+setProfile(profileData);
+} catch (error) {
+console.error('Failed to load user extras:', error);
+setProfile(null);
+setPendingTeamInvites([]);
+}
+};
 
-    setUser(sessionUser);
-    setIsAuthenticated(true);
-    setAuthChecked(true);
-    setIsLoadingAuth(false);
+const applySessionUser = async (sessionUser) => {
+if (!sessionUser) {
+resetAuthState();
+return;
+}
 
-    loadUserExtras(sessionUser);
-  };
+setUser(sessionUser);
+setIsAuthenticated(true);
+setAuthChecked(true);
+setIsLoadingAuth(false);
+setAuthError(null);
 
-  const checkUserAuth = async () => {
-    setIsLoadingAuth(true);
-    setAuthError(null);
+await loadUserExtras(sessionUser);
+};
 
-    try {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
+const checkUserAuth = async () => {
+setIsLoadingAuth(true);
+setAuthError(null);
 
-      if (error) throw error;
+try {
+const {
+data: { session },
+error,
+} = await supabase.auth.getSession();
 
-      applySessionUser(session?.user || null);
-      return session?.user || null;
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      setUser(null);
-      setProfile(null);
-      setPendingTeamInvites([]);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setIsLoadingAuth(false);
-      setAuthError({
-        type: 'auth_error',
-        message: error.message || 'Auth failed',
-      });
-      return null;
-    }
-  };
+if (error) throw error;
 
-  const checkAppState = async () => {
-    await checkUserAuth();
-    return true;
-  };
+await applySessionUser(session?.user || null);
+return session?.user || null;
+} catch (error) {
+console.error('Auth check failed:', error);
+resetAuthState();
+setAuthError({
+type: 'auth_error',
+message: error.message || 'Auth failed',
+});
+return null;
+}
+};
 
-  const refreshPendingTeamInvites = async () => {
-    if (!user?.email) {
-      setPendingTeamInvites([]);
-      return [];
-    }
+const checkAppState = async () => {
+await checkUserAuth();
+return true;
+};
 
-    return loadPendingTeamInvites(user.email);
-  };
+const refreshPendingTeamInvites = async () => {
+if (!user?.email) {
+setPendingTeamInvites([]);
+return [];
+}
 
-  useEffect(() => {
-    let mounted = true;
+return loadPendingTeamInvites(user.email);
+};
 
-    checkUserAuth();
+useEffect(() => {
+let mounted = true;
 
-    const timeout = setTimeout(() => {
-      if (mounted) {
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
-      }
-    }, 5000);
+const initialiseAuth = async () => {
+try {
+await checkUserAuth();
+} finally {
+if (mounted) {
+setIsLoadingAuth(false);
+setAuthChecked(true);
+}
+}
+};
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      applySessionUser(session?.user || null);
-    });
+initialiseAuth();
 
-    return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
-  }, []);
+const timeout = setTimeout(() => {
+if (mounted) {
+setIsLoadingAuth(false);
+setAuthChecked(true);
+}
+}, 5000);
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setPendingTeamInvites([]);
-    setIsAuthenticated(false);
-    setAuthChecked(true);
-    setIsLoadingAuth(false);
-  };
+const {
+data: { subscription },
+} = supabase.auth.onAuthStateChange((_event, session) => {
+if (!mounted) return;
+applySessionUser(session?.user || null);
+});
 
-  const navigateToLogin = () => {
-    window.location.href = '/login';
-  };
+return () => {
+mounted = false;
+clearTimeout(timeout);
+subscription.unsubscribe();
+};
+}, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        pendingTeamInvites,
-        setUser,
-        setProfile,
-        setPendingTeamInvites,
-        isAuthenticated,
-        setIsAuthenticated,
-        isLoadingAuth,
-        setIsLoadingAuth,
-        isLoadingPublicSettings,
-        setIsLoadingPublicSettings,
-        authError,
-        setAuthError,
-        authChecked,
-        setAuthChecked,
-        appPublicSettings,
-        setAppPublicSettings,
-        logout,
-        navigateToLogin,
-        checkUserAuth,
-        checkAppState,
-        refreshPendingTeamInvites,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+const logout = async () => {
+await supabase.auth.signOut();
+resetAuthState();
+};
+
+const navigateToLogin = () => {
+window.location.href = '/login';
+};
+
+return (
+<AuthContext.Provider
+value={{
+user,
+profile,
+pendingTeamInvites,
+setUser,
+setProfile,
+setPendingTeamInvites,
+
+isAuthenticated,
+setIsAuthenticated,
+isLoadingAuth,
+setIsLoadingAuth,
+isLoadingPublicSettings,
+setIsLoadingPublicSettings,
+authError,
+setAuthError,
+authChecked,
+setAuthChecked,
+appPublicSettings,
+setAppPublicSettings,
+
+logout,
+navigateToLogin,
+checkUserAuth,
+checkAppState,
+refreshPendingTeamInvites,
+}}
+>
+{children}
+</AuthContext.Provider>
+);
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+const context = useContext(AuthContext);
 
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+if (!context) {
+throw new Error('useAuth must be used within an AuthProvider');
+}
 
-  return context;
+return context;
 };
