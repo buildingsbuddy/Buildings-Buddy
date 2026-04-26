@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -113,20 +113,30 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-muted/20 relative">
-      <button
-        type="button"
-        onClick={() => navigate('/')}
+      <Link
+        to="/"
         className="absolute top-5 left-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Home
-      </button>
+      </Link>
 
       <Card className="w-full max-w-md shadow-lg">
-        <CardHeader>
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="bg-white px-4 py-3 rounded-xl border shadow-sm w-full max-w-[280px]">
+              <img
+                src="/logo/logo-full.png"
+                alt="Buildings Buddy"
+                className="block w-full h-auto object-contain"
+              />
+            </div>
+          </div>
+
           <CardTitle className="text-2xl font-bold">
             {mode === 'signup' ? 'Create account' : 'Login'}
           </CardTitle>
+
           <p className="text-sm text-muted-foreground">
             {mode === 'signup'
               ? 'Create your Buildings Buddy account.'
@@ -138,11 +148,8 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-3">
             {mode === 'signup' && (
               <Input
-                id="full-name"
-                name="fullName"
                 type="text"
                 placeholder="Full name"
-                autoComplete="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -150,22 +157,16 @@ export default function Login() {
             )}
 
             <Input
-              id="email"
-              name="email"
               type="email"
               placeholder="Email"
-              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
 
             <Input
-              id="password"
-              name="password"
               type="password"
               placeholder="Password"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
