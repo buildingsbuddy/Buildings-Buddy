@@ -930,51 +930,75 @@ Estimate Builder
 </CardHeader>
 
 <CardContent className="space-y-4">
-<div className="space-y-2">
+
+{/* ITEMS */}
+<div className="space-y-3">
 {estimateItems.map((item, index) => (
 <div
 key={item.id}
-className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3"
+className="rounded-xl border bg-card p-4 flex flex-col gap-3"
 >
-<div className="min-w-0">
-<p className="text-sm font-semibold">
-Calculation {index + 1}
-</p>
-<p className="text-xs text-muted-foreground truncate">
-{item.calculatorType}
-{item.pricingIncluded && item.pricingTotal !== null
-? ` · ${money(item.pricingTotal)}`
-: ''}
-</p>
-</div>
+
+{/* TOP ROW */}
+<div className="flex items-center justify-between gap-3">
+
+<Input
+value={item.label}
+onChange={(e) => {
+const value = e.target.value;
+setEstimateItems((prev) =>
+prev.map((i) =>
+i.id === item.id ? { ...i, label: value } : i
+)
+);
+}}
+className="font-semibold text-sm"
+/>
 
 <Button
 size="sm"
 variant="ghost"
 onClick={() => removeEstimateItem(item.id)}
-className="text-muted-foreground hover:text-destructive shrink-0"
+className="text-muted-foreground hover:text-destructive"
 >
-<Trash2 className="w-4 h-4 mr-1" />
-Remove
+<Trash2 className="w-4 h-4" />
 </Button>
+</div>
+
+{/* DETAILS */}
+<div className="flex items-center justify-between text-xs text-muted-foreground">
+
+<span>{item.calculatorType}</span>
+
+{item.pricingIncluded && item.pricingTotal !== null && (
+<span className="font-semibold text-foreground">
+{money(item.pricingTotal)}
+</span>
+)}
+
+</div>
+
 </div>
 ))}
 </div>
 
-<div className="rounded-lg border bg-card p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+{/* SUMMARY */}
+<div className="rounded-xl border bg-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
 <div>
 <p className="text-sm font-semibold">
-Combined Estimate Ready
+Combined Estimate
 </p>
 <p className="text-xs text-muted-foreground">
 {estimateItems.length} calculation
-{estimateItems.length === 1 ? '' : 's'} combined into one materials list.
+{estimateItems.length === 1 ? '' : 's'} combined
 </p>
 </div>
 
-<div className="flex gap-2">
+<div className="flex items-center gap-2">
+
 {includePricing && (
-<div className="rounded-lg bg-accent/10 border border-accent/20 px-3 py-2 text-sm font-semibold">
+<div className="px-3 py-2 rounded-lg bg-accent text-accent-foreground font-semibold text-sm">
 {money(finalPricingTotal)}
 </div>
 )}
@@ -982,8 +1006,10 @@ Combined Estimate Ready
 <Button variant="outline" size="sm" onClick={clearEstimate}>
 Clear
 </Button>
+
 </div>
 </div>
+
 </CardContent>
 </Card>
 )}
