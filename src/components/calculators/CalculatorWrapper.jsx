@@ -6,6 +6,9 @@ FileDown,
 ClipboardList,
 PoundSterling,
 Save,
+Plus,
+Trash2,
+Layers,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
@@ -54,6 +57,21 @@ return new Intl.NumberFormat('en-GB', {
 style: 'currency',
 currency: 'GBP',
 }).format(Number(value));
+}
+
+function toNumber(value) {
+const number = Number(String(value ?? '').replace(/,/g, ''));
+return Number.isFinite(number) ? number : 0;
+}
+
+function formatQuantity(value) {
+const number = Number(value);
+
+if (!Number.isFinite(number)) return value;
+
+return Number.isInteger(number)
+? String(number)
+: Number(number.toFixed(3)).toString();
 }
 
 function getResultGroup(row) {
@@ -137,6 +155,62 @@ if (Array.isArray(savedResults.items)) return savedResults.items;
 return null;
 }
 
+function combineResultRows(items = []) {
+const allRows = [];
+
+items.forEach((item, itemIndex) => {
+const rows = item.results || [];
+
+rows.forEach((row) => {
+allRows.push({
+...row,
+estimate_section: item.label || `Calculation ${itemIndex + 1}`,
+});
+});
+});
+
+const grouped = {};
+
+allRows.forEach((row) => {
+const key = `${String(row.material || '').trim().toLowerCase()}__${String(
+row.unit || ''
+)
+.trim()
+.toLowerCase()}`;
+
+if (!grouped[key]) {
+grouped[key] = {
+...row,
+quantity: toNumber(row.quantity),
+total: row.total !== undefined ? toNumber(row.total) : undefined,
+notes: row.notes || '',
+};
+return;
+}
+
+grouped[key].quantity += toNumber(row.quantity);
+
+if (row.total !== undefined || grouped[key].total !== undefined) {
+grouped[key].total = toNumber(grouped[key].total) + toNumber(row.total);
+}
+
+const currentNotes = grouped[key].notes || '';
+const nextNotes = row.notes || '';
+
+if (nextNotes && !currentNotes.includes(nextNotes)) {
+grouped[key].notes = currentNotes
+? `${currentNotes}; ${nextNotes}`
+: nextNotes;
+}
+});
+
+return Object.values(grouped).map((row) => ({
+...row,
+quantity: formatQuantity(row.quantity),
+total: row.total !== undefined ? Number(row.total.toFixed(2)) : row.total,
+}));
+}
+
 export default function CalculatorWrapper({
 title,
 icon: Icon,
@@ -164,6 +238,9 @@ Boolean(location.state?.prefillInputs?.includePricing)
 );
 const [showPaywall, setShowPaywall] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(false);
+
+const [estimateItems, setEstimateItems] = useState([]);
+const [estimateCounter, setEstimateCounter] = useState(1);
 
 const [projects, setProjects] = useState([]);
 const [loadingProjects, setLoadingProjects] = useState(false);
@@ -195,8 +272,33 @@ if (!results) return { items: [], total: 0 };
 return addPricing(results);
 }, [results]);
 
-const displayResults = includePricing ? pricedData.items : results;
-const groupedResults = useMemo(() => groupResults(results || []), [results]);
+const currentDisplayResults = includePricing ? pricedData.items : results;
+
+const combinedResults = useMemo(() => {
+if (estimateItems.length === 0) return null;
+return combineResultRows(estimateItems);
+}, [estimateItems]);
+
+const combinedPricingData = useMemo(() => {
+if (!combinedResults) return { items: [], total: 0 };
+return addPricing(combinedResults);
+}, [combinedResults]);
+
+const finalDisplayResults = combinedResults
+? includePricing
+? combinedPricingData.items
+: combinedResults
+: currentDisplayResults;
+
+const finalPricingTotal = combinedResults
+? combinedPricingData.total
+: pricedData.total;
+
+const groupedResults = useMemo(
+() => groupResults(finalDisplayResults || []),
+[finalDisplayResults]
+);
+
 const projectLimitReached = !isCompanyPlan && projects.length >= DIY_PROJECT_LIMIT;
 
 const handleCalculate = async () => {
@@ -226,6 +328,38 @@ setSaveBehavior('update');
 } finally {
 setCheckingAccess(false);
 }
+};
+
+const handleAddToEstimate = () => {
+if (!results || results.length === 0) return;
+
+const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
+const label = `${title} ${estimateCounter}`;
+
+setEstimateItems((prev) => [
+...prev,
+{
+id: `${Date.now()}-${estimateCounter}`,
+label,
+calculatorType: calcType || title,
+inputs: payload?.inputs || {},
+results: includePricing ? pricedData.items : results,
+pricingIncluded: includePricing,
+pricingTotal: includePricing ? pricedData.total : null,
+},
+]);
+
+setEstimateCounter((prev) => prev + 1);
+toast.success('Added to estimate.');
+};
+
+const removeEstimateItem = (id) => {
+setEstimateItems((prev) => prev.filter((item) => item.id !== id));
+};
+
+const clearEstimate = () => {
+setEstimateItems([]);
+toast.success('Estimate cleared.');
 };
 
 const loadProjects = async () => {
@@ -303,7 +437,7 @@ return data?.id || null;
 };
 
 const handleSaveToProject = async () => {
-if (!user?.id || !results) return;
+if (!user?.id || !finalDisplayResults) return;
 
 setSavingToProject(true);
 
@@ -337,25 +471,29 @@ return;
 
 const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
 
+const isMultiEstimate = estimateItems.length > 0;
+
 const inputsToSave = {
 ...(payload?.inputs || {}),
 includePricing,
-pricingTotal: includePricing ? pricedData.total : null,
+pricingTotal: includePricing ? finalPricingTotal : null,
+isMultiEstimate,
+estimateItems: isMultiEstimate ? estimateItems : [],
 };
 
-const resultsToSave = includePricing
-? pricedData.items
-: payload?.results || results;
+const resultsToSave = finalDisplayResults;
 
 if (saveBehavior === 'update' && reopenedCalculationId) {
 const { error } = await supabase
 .from('calculations')
 .update({
-  project_id: projectId,
-  team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-  calculator_type: calcType || title,
-  inputs: inputsToSave,
-  results: resultsToSave,
+project_id: projectId,
+team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+calculator_type: isMultiEstimate
+? `${calcType || title}_multi_estimate`
+: calcType || title,
+inputs: inputsToSave,
+results: resultsToSave,
 })
 .eq('id', reopenedCalculationId)
 .eq('user_id', user.id);
@@ -373,7 +511,9 @@ const { error } = await supabase.from('calculations').insert({
 project_id: projectId,
 user_id: user.id,
 team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
-calculator_type: calcType || title,
+calculator_type: isMultiEstimate
+? `${calcType || title}_multi_estimate`
+: calcType || title,
 inputs: inputsToSave,
 results: resultsToSave,
 });
@@ -385,7 +525,7 @@ setSavingToProject(false);
 return;
 }
 
-toast.success('Calculation saved.');
+toast.success(isMultiEstimate ? 'Estimate saved.' : 'Calculation saved.');
 }
 
 setSaveDialogOpen(false);
@@ -404,9 +544,10 @@ setSavingToProject(false);
 };
 
 const handleExportPDF = () => {
-if (!results) return;
+if (!finalDisplayResults) return;
 
-const rowsForPdf = includePricing ? pricedData.items : results;
+const rowsForPdf = finalDisplayResults;
+const isMultiEstimate = estimateItems.length > 0;
 
 const groupedRows = groupResults(rowsForPdf)
 .map(([groupName, rows]) => {
@@ -439,8 +580,26 @@ ${rowsHtml}
 })
 .join('');
 
+const estimateBreakdown = isMultiEstimate
+? `
+<div class="estimate-breakdown">
+<strong>Estimate includes:</strong>
+<ul>
+${estimateItems
+.map(
+(item, index) =>
+`<li>${index + 1}. ${escapeHtml(item.label)} — ${escapeHtml(
+item.calculatorType
+)}</li>`
+)
+.join('')}
+</ul>
+</div>
+`
+: '';
+
 const totalBox = includePricing
-? `<div class="total-box">Estimated Material Total: <strong>${money(pricedData.total)}</strong></div>`
+? `<div class="total-box">Estimated Material Total: <strong>${money(finalPricingTotal)}</strong></div>`
 : '';
 
 const html = `
@@ -454,6 +613,8 @@ h1 { font-size:24px; margin:0 0 6px; }
 .sub { color:#666; font-size:13px; margin:0; }
 .badge { background:#f1f4f8; padding:8px 12px; border-radius:8px; font-size:12px; color:#333; }
 .total-box { margin:0 0 18px; background:#f7fafc; border:1px solid #d8dee8; border-radius:8px; padding:12px 14px; font-size:15px; }
+.estimate-breakdown { margin:0 0 18px; background:#fff8eb; border:1px solid #f1d49b; border-radius:8px; padding:12px 14px; font-size:13px; }
+.estimate-breakdown ul { margin:8px 0 0; padding-left:18px; }
 table { width:100%; border-collapse:collapse; font-size:13px; }
 th { background:#1e2d4d; color:white; padding:9px 12px; text-align:left; }
 th:nth-child(2), th:nth-child(4), th:nth-child(5) { text-align:right; }
@@ -467,14 +628,23 @@ tr:nth-child(even) td { background:#fafafa; }
 <body>
 <div class="brand">
 <div>
-<h1>${escapeHtml(title)}</h1>
+<h1>${escapeHtml(isMultiEstimate ? `${title} Estimate` : title)}</h1>
 <p class="sub">Buildings Buddy — Material Estimate & Cost Guide</p>
 </div>
 <div class="badge">
-${includePricing ? 'Materials + Guide Pricing' : 'Material Estimate'}
+${
+isMultiEstimate
+? includePricing
+? 'Multi-Calculation Estimate + Guide Pricing'
+: 'Multi-Calculation Estimate'
+: includePricing
+? 'Materials + Guide Pricing'
+: 'Material Estimate'
+}
 </div>
 </div>
 
+${estimateBreakdown}
 ${totalBox}
 
 <table>
@@ -560,6 +730,10 @@ className="gap-2"
 {includePricing ? 'Hide Pricing' : 'Include Pricing'}
 </Button>
 
+<Button variant="outline" onClick={handleAddToEstimate}>
+<Plus className="w-4 h-4 mr-1" /> Add to Estimate
+</Button>
+
 <Button variant="outline" onClick={handleExportPDF}>
 <FileDown className="w-4 h-4 mr-1" /> Export PDF
 </Button>
@@ -583,6 +757,13 @@ Save this calculator result to a project.
 {!isCompanyPlan && (
 <div className="rounded-lg border bg-muted/30 p-3 text-sm">
 DIY project usage: {projects.length} / {DIY_PROJECT_LIMIT}
+</div>
+)}
+
+{estimateItems.length > 0 && (
+<div className="rounded-lg border bg-accent/10 border-accent/20 p-3 text-sm">
+This save includes {estimateItems.length} calculation
+{estimateItems.length === 1 ? '' : 's'} combined into one estimate.
 </div>
 )}
 
@@ -739,12 +920,80 @@ className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semib
 </CardContent>
 </Card>
 
-{results && (
+{estimateItems.length > 0 && (
+<Card className="mt-6 border-accent/30 bg-accent/5">
+<CardHeader>
+<CardTitle className="flex items-center gap-2 font-heading text-lg">
+<Layers className="w-5 h-5 text-accent" />
+Estimate Builder
+</CardTitle>
+</CardHeader>
+
+<CardContent className="space-y-4">
+<div className="space-y-2">
+{estimateItems.map((item, index) => (
+<div
+key={item.id}
+className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3"
+>
+<div className="min-w-0">
+<p className="text-sm font-semibold">
+Calculation {index + 1}
+</p>
+<p className="text-xs text-muted-foreground truncate">
+{item.calculatorType}
+{item.pricingIncluded && item.pricingTotal !== null
+? ` · ${money(item.pricingTotal)}`
+: ''}
+</p>
+</div>
+
+<Button
+size="sm"
+variant="ghost"
+onClick={() => removeEstimateItem(item.id)}
+className="text-muted-foreground hover:text-destructive shrink-0"
+>
+<Trash2 className="w-4 h-4 mr-1" />
+Remove
+</Button>
+</div>
+))}
+</div>
+
+<div className="rounded-lg border bg-card p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+<div>
+<p className="text-sm font-semibold">
+Combined Estimate Ready
+</p>
+<p className="text-xs text-muted-foreground">
+{estimateItems.length} calculation
+{estimateItems.length === 1 ? '' : 's'} combined into one materials list.
+</p>
+</div>
+
+<div className="flex gap-2">
+{includePricing && (
+<div className="rounded-lg bg-accent/10 border border-accent/20 px-3 py-2 text-sm font-semibold">
+{money(finalPricingTotal)}
+</div>
+)}
+
+<Button variant="outline" size="sm" onClick={clearEstimate}>
+Clear
+</Button>
+</div>
+</div>
+</CardContent>
+</Card>
+)}
+
+{finalDisplayResults && (
 <Card className="mt-6 border-accent/20">
 <CardHeader>
 <CardTitle className="flex items-center gap-2 font-heading text-lg">
 <ClipboardList className="w-5 h-5 text-accent" />
-Estimate Summary
+{estimateItems.length > 0 ? 'Combined Estimate Summary' : 'Estimate Summary'}
 </CardTitle>
 </CardHeader>
 
@@ -762,7 +1011,7 @@ Estimate Summary
 <div className="rounded-lg border bg-accent/10 border-accent/20 p-3">
 <p className="text-sm font-semibold">Estimated Total</p>
 <p className="text-lg font-bold mt-1">
-{money(pricedData.total)}
+{money(finalPricingTotal)}
 </p>
 </div>
 )}
@@ -771,12 +1020,12 @@ Estimate Summary
 )}
 
 <CalculatorResultsTable
-results={displayResults}
+results={finalDisplayResults}
 showPricing={includePricing}
-pricingTotal={pricedData.total}
+pricingTotal={finalPricingTotal}
 />
 
-{results && (
+{finalDisplayResults && (
 <p className="mt-3 text-xs text-muted-foreground">
 Estimate guidance only. Labour, plant, delivery, waste removal, profit,
 overheads and VAT are not included.
