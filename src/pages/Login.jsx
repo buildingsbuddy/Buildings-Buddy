@@ -39,6 +39,10 @@ return mode === 'signup'
 : 'Could not log in. Please check your email and password and try again.';
 }
 
+function getEmailRedirectUrl() {
+return `${window.location.origin}/login?confirmed=true`;
+}
+
 export default function Login() {
 const navigate = useNavigate();
 
@@ -65,6 +69,7 @@ const { data, error } = await supabase.auth.signUp({
 email: cleanEmail,
 password,
 options: {
+emailRedirectTo: getEmailRedirectUrl(),
 data: {
 full_name: fullName.trim(),
 },
