@@ -13,9 +13,11 @@ throw new Error('Missing VITE_SUPABASE_ANON_KEY');
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
 auth: {
+storageKey: 'buildings-buddy-auth',
 persistSession: true,
 autoRefreshToken: true,
 detectSessionInUrl: true,
+flowType: 'pkce',
 storage: window.localStorage,
 },
 });
