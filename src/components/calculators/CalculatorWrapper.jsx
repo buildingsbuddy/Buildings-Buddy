@@ -350,11 +350,21 @@ pricingTotal: includePricing ? pricedData.total : null,
 ]);
 
 setEstimateCounter((prev) => prev + 1);
-toast.success('Added to estimate.');
+
+setResults(null);
+setIncludePricing(false);
+
+toast.success('Added to estimate. Start next calculation.');
 };
 
 const removeEstimateItem = (id) => {
 setEstimateItems((prev) => prev.filter((item) => item.id !== id));
+};
+
+const updateEstimateItemLabel = (id, label) => {
+setEstimateItems((prev) =>
+prev.map((item) => (item.id === id ? { ...item, label } : item))
+);
 };
 
 const clearEstimate = () => {
@@ -470,7 +480,6 @@ return;
 }
 
 const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
-
 const isMultiEstimate = estimateItems.length > 0;
 
 const inputsToSave = {
@@ -624,7 +633,6 @@ tr:nth-child(even) td { background:#fafafa; }
 .footer { margin-top:28px; padding-top:14px; border-top:1px solid #ddd; font-size:11px; color:#777; line-height:1.5; }
 </style>
 </head>
-
 <body>
 <div class="brand">
 <div>
@@ -731,7 +739,8 @@ className="gap-2"
 </Button>
 
 <Button variant="outline" onClick={handleAddToEstimate}>
-<Plus className="w-4 h-4 mr-1" /> Add to Estimate
+<Plus className="w-4 h-4 mr-1" />
+{estimateItems.length > 0 ? 'Add Another' : 'Add to Estimate'}
 </Button>
 
 <Button variant="outline" onClick={handleExportPDF}>
@@ -917,6 +926,12 @@ className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semib
 </>
 )}
 </div>
+
+{estimateItems.length > 0 && (
+<p className="text-xs text-muted-foreground mt-1">
+You are building a multi-calculation estimate. Add more calculations to combine totals.
+</p>
+)}
 </CardContent>
 </Card>
 
@@ -930,28 +945,18 @@ Estimate Builder
 </CardHeader>
 
 <CardContent className="space-y-4">
-
-{/* ITEMS */}
 <div className="space-y-3">
 {estimateItems.map((item, index) => (
 <div
 key={item.id}
 className="rounded-xl border bg-card p-4 flex flex-col gap-3"
 >
-
-{/* TOP ROW */}
 <div className="flex items-center justify-between gap-3">
-
 <Input
 value={item.label}
-onChange={(e) => {
-const value = e.target.value;
-setEstimateItems((prev) =>
-prev.map((i) =>
-i.id === item.id ? { ...i, label: value } : i
-)
-);
-}}
+onChange={(e) =>
+updateEstimateItemLabel(item.id, e.target.value)
+}
 className="font-semibold text-sm"
 />
 
@@ -965,38 +970,31 @@ className="text-muted-foreground hover:text-destructive"
 </Button>
 </div>
 
-{/* DETAILS */}
 <div className="flex items-center justify-between text-xs text-muted-foreground">
-
-<span>{item.calculatorType}</span>
+<span>
+Calculation {index + 1} · {item.calculatorType}
+</span>
 
 {item.pricingIncluded && item.pricingTotal !== null && (
 <span className="font-semibold text-foreground">
 {money(item.pricingTotal)}
 </span>
 )}
-
 </div>
-
 </div>
 ))}
 </div>
 
-{/* SUMMARY */}
 <div className="rounded-xl border bg-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-
 <div>
-<p className="text-sm font-semibold">
-Combined Estimate
-</p>
+<p className="text-sm font-semibold">Combined Estimate</p>
 <p className="text-xs text-muted-foreground">
 {estimateItems.length} calculation
-{estimateItems.length === 1 ? '' : 's'} combined
+{estimateItems.length === 1 ? '' : 's'} combined into one materials list.
 </p>
 </div>
 
 <div className="flex items-center gap-2">
-
 {includePricing && (
 <div className="px-3 py-2 rounded-lg bg-accent text-accent-foreground font-semibold text-sm">
 {money(finalPricingTotal)}
@@ -1006,10 +1004,8 @@ Combined Estimate
 <Button variant="outline" size="sm" onClick={clearEstimate}>
 Clear
 </Button>
-
 </div>
 </div>
-
 </CardContent>
 </Card>
 )}

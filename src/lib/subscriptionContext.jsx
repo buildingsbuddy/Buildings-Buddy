@@ -136,9 +136,8 @@ created_at
 .eq('status', 'active')
 .maybeSingle();
 
-if (error) {
-console.error('Failed to load team membership:', error);
-return null;
+if (error && error.code !== 'PGRST116') {
+  console.error('Failed to load team membership:', error);
 }
 
 return data || null;
