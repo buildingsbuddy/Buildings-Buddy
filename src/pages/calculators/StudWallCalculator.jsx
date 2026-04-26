@@ -21,8 +21,30 @@ import {
 
 const STOCK_LENGTHS = ['2.4', '3.0', '3.6', '4.2', '4.8', '5.4', '6.0'];
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    height: '',
+    spacing: '400',
+    allowance: 'standard',
+    timberStockLength: '2.4',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    height: '',
+    spacing: '400',
+    allowance: 'standard',
+    timberStockLength: '2.4',
+  };
+}
+
 function isStudWallOrderable(row) {
   const material = String(row.material || '').toLowerCase();
+
   return (
     material.includes('timber') ||
     material.includes('noggins') ||
@@ -38,19 +60,16 @@ export default function StudWallCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    height: '',
-    spacing: '400',
-    allowance: 'standard',
-    timberStockLength: '2.4',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.height) return null;
@@ -83,7 +102,10 @@ export default function StudWallCalculator() {
       icon={Columns3}
       calcType="stud_walls"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

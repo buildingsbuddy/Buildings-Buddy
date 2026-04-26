@@ -18,6 +18,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    totalRise: '',
+    width: '',
+    material: 'timber',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    totalRise: '',
+    width: '',
+    material: 'timber',
+    allowance: 'standard',
+  };
+}
+
 function isStaircaseOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -38,18 +57,16 @@ export default function StaircaseCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    totalRise: '',
-    width: '',
-    material: 'timber',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.totalRise || !inputs.width) return null;
@@ -73,7 +90,10 @@ export default function StaircaseCalculator() {
       icon={MoveUp}
       calcType="staircase"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

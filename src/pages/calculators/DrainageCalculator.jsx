@@ -19,6 +19,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+const PEA_GRAVEL_TONNES_PER_M3 = 1.6;
+
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    pipeDiameter: '110',
+    gradient: '1',
+    allowance: 'standard',
+    pipeStockLength: '3',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    pipeDiameter: '110',
+    gradient: '1',
+    allowance: 'standard',
+    pipeStockLength: '3',
+  };
+}
+
 function isDrainageOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -31,23 +54,47 @@ function isDrainageOrderable(row) {
   );
 }
 
+function addPeaGravelTonnesRow(results) {
+  const peaGravelRow = results.find((row) => {
+    const material = String(row.material || '').toLowerCase();
+    const unit = String(row.unit || '').toLowerCase();
+
+    return material.includes('pea gravel') && unit.includes('m³');
+  });
+
+  if (!peaGravelRow) return results;
+
+  const volumeM3 = Number(peaGravelRow.quantity);
+
+  if (!Number.isFinite(volumeM3)) return results;
+
+  const tonnes = volumeM3 * PEA_GRAVEL_TONNES_PER_M3;
+
+  return [
+    ...results,
+    {
+      material: 'Pea Gravel — Estimated Weight',
+      quantity: Number(tonnes.toFixed(2)),
+      unit: 'tonnes',
+      notes: 'Based on approx. 1.6 tonnes per m³. Check supplier bulk density before ordering.',
+    },
+  ];
+}
+
 export default function DrainageCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    pipeDiameter: '110',
-    gradient: '1',
-    allowance: 'standard',
-    pipeStockLength: '3',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length) return null;
@@ -58,7 +105,13 @@ export default function DrainageCalculator() {
       gradient: parseFloat(inputs.gradient),
     });
 
-    let results = withExtraAllowance(baseResults, extraAllowancePercent, isDrainageOrderable);
+    let results = withExtraAllowance(
+      baseResults,
+      extraAllowancePercent,
+      isDrainageOrderable
+    );
+
+    results = addPeaGravelTonnesRow(results);
 
     results = addLengthOrderRow(
       results,
@@ -76,7 +129,10 @@ export default function DrainageCalculator() {
       icon={Waves}
       calcType="drainage"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

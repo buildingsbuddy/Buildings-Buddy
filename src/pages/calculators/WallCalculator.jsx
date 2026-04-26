@@ -46,8 +46,34 @@ const DEFAULT_PACK_SIZES = {
   brick_facing: '500',
 };
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    height: '',
+    thickness: 'single',
+    materialType: 'block_standard',
+    bond: 'Stretcher Bond',
+    allowance: 'standard',
+    packSize: DEFAULT_PACK_SIZES.block_standard,
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    height: '',
+    thickness: 'single',
+    materialType: 'block_standard',
+    bond: 'Stretcher Bond',
+    allowance: 'standard',
+    packSize: DEFAULT_PACK_SIZES.block_standard,
+  };
+}
+
 function isPrimaryWallMaterial(row) {
   const material = String(row.material || '').toLowerCase();
+
   return (
     material.includes('concrete blocks') ||
     material.includes('bricks') ||
@@ -70,16 +96,7 @@ export default function WallCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    height: '',
-    thickness: 'single',
-    materialType: 'block_standard',
-    bond: 'Stretcher Bond',
-    allowance: 'standard',
-    packSize: DEFAULT_PACK_SIZES.block_standard,
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const showBond = inputs.materialType.startsWith('brick');
   const showPackSize =
@@ -89,6 +106,10 @@ export default function WallCalculator() {
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.height) return null;
@@ -120,7 +141,10 @@ export default function WallCalculator() {
       icon={Landmark}
       calcType="wall_construction"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

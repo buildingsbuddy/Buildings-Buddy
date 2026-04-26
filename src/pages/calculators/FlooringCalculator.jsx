@@ -18,6 +18,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    width: '',
+    materialType: 'concrete_slab',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    width: '',
+    materialType: 'concrete_slab',
+    allowance: 'standard',
+  };
+}
+
 function isFlooringOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -38,18 +57,16 @@ export default function FlooringCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    width: '',
-    materialType: 'concrete_slab',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.width) return null;
@@ -69,7 +86,10 @@ export default function FlooringCalculator() {
       icon={Grid3X3}
       calcType="flooring"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

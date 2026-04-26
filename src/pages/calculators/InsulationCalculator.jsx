@@ -18,6 +18,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    width: '',
+    area_type: 'wall',
+    insType: 'mineral_wool',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    width: '',
+    area_type: 'wall',
+    insType: 'mineral_wool',
+    allowance: 'standard',
+  };
+}
+
 function isInsulationOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -36,19 +57,17 @@ export default function InsulationCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    width: '',
-    area_type: 'wall',
-    insType: 'mineral_wool',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  // 🔥 THIS IS THE IMPORTANT PART
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.width) return null;
@@ -69,7 +88,10 @@ export default function InsulationCalculator() {
       icon={Thermometer}
       calcType="insulation"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs, // ✅ this connects to wrapper logic
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

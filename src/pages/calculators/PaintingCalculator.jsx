@@ -18,6 +18,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    height: '',
+    coats: '2',
+    surface: 'plaster',
+    paintType: 'emulsion',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    height: '',
+    coats: '2',
+    surface: 'plaster',
+    paintType: 'emulsion',
+    allowance: 'standard',
+  };
+}
+
 function isPaintingOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -35,20 +58,16 @@ export default function PaintingCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    height: '',
-    coats: '2',
-    surface: 'plaster',
-    paintType: 'emulsion',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.height) return null;
@@ -70,7 +89,10 @@ export default function PaintingCalculator() {
       icon={Brush}
       calcType="painting"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

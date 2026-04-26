@@ -18,6 +18,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    height: '',
+    coats: '2',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    height: '',
+    coats: '2',
+    allowance: 'standard',
+  };
+}
+
 function isPlasterSkimOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -32,18 +51,16 @@ export default function PlasterSkimCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    height: '',
-    coats: '2',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.height) return null;
@@ -67,7 +84,10 @@ export default function PlasterSkimCalculator() {
       icon={PaintBucket}
       calcType="plaster_skim"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

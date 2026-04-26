@@ -26,6 +26,29 @@ const DEFAULT_PACK_SIZES = {
   sheet: '',
 };
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    width: '',
+    pitch: '30',
+    materialType: 'concrete',
+    allowance: 'standard',
+    packSize: DEFAULT_PACK_SIZES.concrete,
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    width: '',
+    pitch: '30',
+    materialType: 'concrete',
+    allowance: 'standard',
+    packSize: DEFAULT_PACK_SIZES.concrete,
+  };
+}
+
 function isRoofOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -53,15 +76,7 @@ export default function RoofingCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    width: '',
-    pitch: '30',
-    materialType: 'concrete',
-    allowance: 'standard',
-    packSize: DEFAULT_PACK_SIZES.concrete,
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const showPackSize =
     inputs.materialType === 'concrete' ||
@@ -72,6 +87,10 @@ export default function RoofingCalculator() {
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.width) return null;
@@ -102,7 +121,10 @@ export default function RoofingCalculator() {
       icon={Home}
       calcType="roofing"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs,
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">

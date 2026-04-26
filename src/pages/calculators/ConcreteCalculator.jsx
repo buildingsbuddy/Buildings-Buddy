@@ -18,6 +18,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+function getDefaultInputs(prefillInputs = {}) {
+  return {
+    length: '',
+    width: '',
+    depth: '',
+    grade: 'C20',
+    allowance: 'standard',
+    ...prefillInputs,
+  };
+}
+
+function getFreshInputs() {
+  return {
+    length: '',
+    width: '',
+    depth: '',
+    grade: 'C20',
+    allowance: 'standard',
+  };
+}
+
 function isConcreteOrderable(row) {
   const material = String(row.material || '').toLowerCase();
 
@@ -34,19 +55,17 @@ export default function ConcreteCalculator() {
   const location = useLocation();
   const prefillInputs = location.state?.prefillInputs;
 
-  const [inputs, setInputs] = useState(() => ({
-    length: '',
-    width: '',
-    depth: '',
-    grade: 'C20',
-    allowance: 'standard',
-    ...prefillInputs,
-  }));
+  const [inputs, setInputs] = useState(() => getDefaultInputs(prefillInputs));
 
   const extraAllowancePercent = useMemo(
     () => getExtraAllowancePercent(inputs.allowance),
     [inputs.allowance]
   );
+
+  // 🔥 REQUIRED FOR ESTIMATE FLOW
+  const resetInputs = () => {
+    setInputs(getFreshInputs());
+  };
 
   const calculateResults = () => {
     if (!inputs.length || !inputs.width || !inputs.depth) return null;
@@ -58,7 +77,11 @@ export default function ConcreteCalculator() {
       grade: inputs.grade,
     });
 
-    return withExtraAllowance(baseResults, extraAllowancePercent, isConcreteOrderable);
+    return withExtraAllowance(
+      baseResults,
+      extraAllowancePercent,
+      isConcreteOrderable
+    );
   };
 
   return (
@@ -67,7 +90,10 @@ export default function ConcreteCalculator() {
       icon={Cylinder}
       calcType="concrete_mix"
       onCalculate={calculateResults}
-      getSavePayload={() => ({ inputs: { ...inputs, extraAllowancePercent } })}
+      getSavePayload={() => ({
+        inputs: { ...inputs, extraAllowancePercent },
+        resetInputs, // ✅ THIS IS THE KEY
+      })}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
