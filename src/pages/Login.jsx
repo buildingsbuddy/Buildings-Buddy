@@ -233,3 +233,28 @@ messageType === 'error'
 </div>
 );
 }
+<button
+  type="button"
+  className="text-sm text-muted-foreground underline"
+  onClick={async () => {
+    if (!email) {
+      setMessageType('error');
+      setMessage('Enter your email first');
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setMessageType('error');
+      setMessage(error.message);
+    } else {
+      setMessageType('info');
+      setMessage('Password reset email sent. Check your inbox.');
+    }
+  }}
+>
+  Forgot password?
+</button>

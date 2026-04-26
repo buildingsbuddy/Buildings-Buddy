@@ -214,7 +214,7 @@ function AppRoutes() {
     </Routes>
   );
 }
-
+<Route path="/reset-password" element={<ResetPassword />} />
 function App() {
   return (
     <AuthProvider>
