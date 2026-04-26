@@ -1,12 +1,14 @@
 {
 "name": "Buildings Buddy",
 "short_name": "Buddy",
-"start_url": "/dashboard",
+"description": "Construction material calculator with project management and PDF export",
+"start_url": "/login",
 "scope": "/",
 "display": "standalone",
+"orientation": "portrait",
 "background_color": "#0f172a",
 "theme_color": "#0f172a",
-"orientation": "portrait",
+
 "icons": [
 {
 "src": "/icons/icon-192.png",
