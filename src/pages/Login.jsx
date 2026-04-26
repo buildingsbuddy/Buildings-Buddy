@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
@@ -55,6 +55,21 @@ const [processing, setProcessing] = useState(false);
 const [message, setMessage] = useState('');
 const [messageType, setMessageType] = useState('info');
 
+// ✅ Auto redirect if already logged in
+useEffect(() => {
+const checkSession = async () => {
+const {
+data: { session },
+} = await supabase.auth.getSession();
+
+if (session?.user) {
+navigate('/dashboard', { replace: true });
+}
+};
+
+checkSession();
+}, [navigate]);
+
 const handleSubmit = async (e) => {
 e.preventDefault();
 setProcessing(true);
@@ -64,6 +79,7 @@ setMessageType('info');
 try {
 const cleanEmail = email.trim().toLowerCase();
 
+// 🔹 SIGN UP
 if (mode === 'signup') {
 const { data, error } = await supabase.auth.signUp({
 email: cleanEmail,
@@ -90,6 +106,7 @@ navigate('/dashboard');
 return;
 }
 
+// 🔹 LOGIN
 const { data, error } = await supabase.auth.signInWithPassword({
 email: cleanEmail,
 password,
@@ -121,6 +138,7 @@ setPassword('');
 
 return (
 <div className="min-h-screen flex items-center justify-center px-4 bg-muted/20 relative">
+{/* 🔙 Back Button */}
 <Link
 to="/"
 className="absolute top-5 left-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -131,6 +149,7 @@ Back to Home
 
 <Card className="w-full max-w-lg shadow-lg">
 <CardHeader className="text-center space-y-4">
+{/* 🔥 Logo */}
 <div className="flex justify-center">
 <div className="bg-white px-6 py-4 rounded-2xl border shadow-md w-full max-w-[320px] sm:max-w-[430px]">
 <img
