@@ -241,6 +241,7 @@ const [checkingAccess, setCheckingAccess] = useState(false);
 
 const [estimateItems, setEstimateItems] = useState([]);
 const [estimateCounter, setEstimateCounter] = useState(1);
+const [estimateMode, setEstimateMode] = useState(false);
 
 const [projects, setProjects] = useState([]);
 const [loadingProjects, setLoadingProjects] = useState(false);
@@ -317,13 +318,41 @@ return;
 
 const calcResults = onCalculate();
 
-if (calcResults) {
+if (!calcResults || calcResults.length === 0) return;
+
+const payload =
+typeof getSavePayload === 'function' ? getSavePayload() : null;
+
 setResults(calcResults);
 setIncludePricing(false);
 
+if (estimateMode) {
+const label = `${title} ${estimateCounter}`;
+
+setEstimateItems((prev) => [
+...prev,
+{
+id: `${Date.now()}-${estimateCounter}`,
+label,
+calculatorType: calcType || title,
+inputs: payload?.inputs || {},
+results: calcResults,
+pricingIncluded: false,
+pricingTotal: null,
+},
+]);
+
+setEstimateCounter((prev) => prev + 1);
+
+if (payload?.resetInputs) {
+payload.resetInputs();
+}
+
+toast.success('Calculation added to estimate.');
+}
+
 if (reopenedCalculationId) {
 setSaveBehavior('update');
-}
 }
 } finally {
 setCheckingAccess(false);
@@ -331,9 +360,18 @@ setCheckingAccess(false);
 };
 
 const handleAddToEstimate = () => {
-if (!results || results.length === 0) return;
+if (estimateMode) {
+setEstimateMode(false);
+toast.success('Multi add disabled.');
+return;
+}
 
-const payload = typeof getSavePayload === 'function' ? getSavePayload() : null;
+setEstimateMode(true);
+
+if (results && results.length > 0) {
+const payload =
+typeof getSavePayload === 'function' ? getSavePayload() : null;
+
 const label = `${title} ${estimateCounter}`;
 
 setEstimateItems((prev) => [
@@ -351,15 +389,34 @@ pricingTotal: includePricing ? pricedData.total : null,
 
 setEstimateCounter((prev) => prev + 1);
 
-setResults(null);
-setIncludePricing(false);
+if (payload?.resetInputs) {
+payload.resetInputs();
+}
 
-toast.success('Added to estimate. Start next calculation.');
+toast.success('Multi add enabled. Current calculation added.');
+return;
+}
+
+toast.success('Multi add enabled. Calculate materials to add items.');
 };
 
 const removeEstimateItem = (id) => {
-setEstimateItems((prev) => prev.filter((item) => item.id !== id));
+setEstimateItems((prev) => {
+const updated = prev.filter((item) => item.id !== id);
+
+if (updated.length === 0) {
+setResults(null);
+setIncludePricing(false);
+setEstimateCounter(1);
+setEstimateMode(false);
+}
+
+return updated;
+});
+
+toast.success('Calculation removed.');
 };
+
 
 const updateEstimateItemLabel = (id, label) => {
 setEstimateItems((prev) =>
@@ -369,6 +426,11 @@ prev.map((item) => (item.id === id ? { ...item, label } : item))
 
 const clearEstimate = () => {
 setEstimateItems([]);
+setEstimateCounter(1);
+setEstimateMode(false);
+setResults(null);
+setIncludePricing(false);
+setSaveBehavior(reopenedCalculationId ? 'update' : 'new');
 toast.success('Estimate cleared.');
 };
 
@@ -687,6 +749,7 @@ win.focus();
 win.print();
 };
 
+
 const saveButtonLabel =
 saveBehavior === 'update' ? 'Update Calculation' : 'Save Calculation';
 
@@ -727,7 +790,12 @@ Recalculate, then update this saved calculation or save a new copy.
 {checkingAccess ? 'Checking...' : 'Calculate Materials'}
 </Button>
 
-{results && (
+<Button variant="outline" onClick={handleAddToEstimate}>
+<Plus className="w-4 h-4 mr-1" />
+{estimateMode ? 'Multi Add On' : 'Start Multi Add'}
+</Button>
+
+{(results || estimateItems.length > 0) && (
 <>
 <Button
 onClick={() => setIncludePricing((prev) => !prev)}
@@ -738,10 +806,7 @@ className="gap-2"
 {includePricing ? 'Hide Pricing' : 'Include Pricing'}
 </Button>
 
-<Button variant="outline" onClick={handleAddToEstimate}>
-<Plus className="w-4 h-4 mr-1" />
-{estimateItems.length > 0 ? 'Add Another' : 'Add to Estimate'}
-</Button>
+
 
 <Button variant="outline" onClick={handleExportPDF}>
 <FileDown className="w-4 h-4 mr-1" /> Export PDF
@@ -1010,7 +1075,7 @@ Clear
 </Card>
 )}
 
-{finalDisplayResults && (
+{(results || estimateItems.length > 0) && (
 <Card className="mt-6 border-accent/20">
 <CardHeader>
 <CardTitle className="flex items-center gap-2 font-heading text-lg">
@@ -1047,7 +1112,7 @@ showPricing={includePricing}
 pricingTotal={finalPricingTotal}
 />
 
-{finalDisplayResults && (
+{(results || estimateItems.length > 0) && (
 <p className="mt-3 text-xs text-muted-foreground">
 Estimate guidance only. Labour, plant, delivery, waste removal, profit,
 overheads and VAT are not included.
