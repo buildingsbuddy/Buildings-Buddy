@@ -1,11 +1,6 @@
 // UK guide pricing engine — Buildings Buddy
 // Average UK-wide guide rates only, not live supplier prices.
 // Pricing remains ex VAT.
-// Safe professional upgrade:
-// - Uses pricingKey metadata first.
-// - Falls back to text matching for older saved calculations.
-// - Measurement/helper rows stay unpriced.
-// - Applies modest supplier variation only once.
 
 const UK_GUIDE_RATES = {
 // Walling
@@ -39,15 +34,18 @@ cls_timber_m: 4.5,
 plasterboard_sheet: 14.5,
 chipboard_sheet: 19,
 joist_hanger: 2.5,
+timber_fixings_box: 12,
 
 // Roofing
 concrete_roof_tile: 1.15,
 clay_roof_tile: 1.5,
 slate_m2: 40,
+slate_piece: 0.95,
 roof_sheet_m2: 32,
 roofing_membrane_m2: 1.8,
 roof_batten_m: 1.4,
 ridge_tile: 5.5,
+roof_fixings_box: 12.6,
 
 // Insulation
 insulation_m2: 10,
@@ -126,6 +124,8 @@ material.includes('fall')
 }
 
 function isOrderingHelperRow(row) {
+if (row?.orderable === true) return false;
+if (row?.rowType === 'material') return false;
 if (row?.rowType === 'helper') return true;
 
 const material = normalise(row.material);
@@ -133,15 +133,12 @@ const material = normalise(row.material);
 return (
 material.includes('packs / pallets') ||
 material.includes(' packs') ||
-material.includes('recommended pipe order') ||
-material.includes('recommended') ||
-material.includes('order')
+material.includes('recommended pipe order')
 );
 }
 
 function getRateFromPricingKey(row) {
 const key = row?.pricingKey;
-
 if (!key) return null;
 
 return UK_GUIDE_RATES[key] ?? null;
@@ -195,19 +192,37 @@ if (material.includes('steel mesh')) return UK_GUIDE_RATES.mesh_sheet;
 
 // Timber / boards
 if (
+material.includes('cls timber') ||
 material.includes('total timber') ||
 material.includes('timber required') ||
 material.includes('joist timber') ||
 material.includes('noggin timber') ||
 material.includes('rafter timber') ||
-material.includes('batten') ||
 material.includes('handrail')
 ) {
 if (unit.includes('lin') || unit === 'm') {
-return material.includes('batten')
-? UK_GUIDE_RATES.roof_batten_m
-: UK_GUIDE_RATES.structural_timber_m;
+return UK_GUIDE_RATES.structural_timber_m;
 }
+}
+
+if (material.includes('batten') && (unit.includes('lin') || unit === 'm')) {
+return UK_GUIDE_RATES.roof_batten_m;
+}
+
+if (
+material.includes('framing nails') ||
+material.includes('timber screws') ||
+material.includes('flooring screws')
+) {
+return UK_GUIDE_RATES.timber_fixings_box;
+}
+
+if (
+material.includes('tile / sheet fixings') ||
+material.includes('batten nails') ||
+material.includes('dry ridge')
+) {
+return UK_GUIDE_RATES.roof_fixings_box;
 }
 
 if (material.includes('joist hanger') || material.includes('hangers')) {
@@ -218,7 +233,9 @@ if (material.includes('plasterboard')) return UK_GUIDE_RATES.plasterboard_sheet;
 if (material.includes('chipboard')) return UK_GUIDE_RATES.chipboard_sheet;
 
 // Roofing
+if (material.includes('concrete roof tiles')) return UK_GUIDE_RATES.concrete_roof_tile;
 if (material.includes('concrete tiles')) return UK_GUIDE_RATES.concrete_roof_tile;
+if (material.includes('clay roof tiles')) return UK_GUIDE_RATES.clay_roof_tile;
 if (material.includes('clay tiles')) return UK_GUIDE_RATES.clay_roof_tile;
 
 if (material.includes('ridge tiles') || material.includes('hip / valley tiles')) {
@@ -226,7 +243,7 @@ return UK_GUIDE_RATES.ridge_tile;
 }
 
 if (material.includes('slate')) {
-return unit.includes('m²') ? UK_GUIDE_RATES.slate_m2 : UK_GUIDE_RATES.concrete_roof_tile;
+return unit.includes('m²') ? UK_GUIDE_RATES.slate_m2 : UK_GUIDE_RATES.slate_piece;
 }
 
 if (material.includes('sheet')) return UK_GUIDE_RATES.roof_sheet_m2;
@@ -248,7 +265,8 @@ if (unit.includes('m²')) return UK_GUIDE_RATES.insulation_m2;
 }
 
 if (material.includes('vapour control')) return UK_GUIDE_RATES.vcl_m2;
-if (material.includes('tape') || material.includes('fixings')) {
+
+if (material.includes('insulation tape') || material.includes('insulation fixings')) {
 return UK_GUIDE_RATES.insulation_fixings_pack;
 }
 
@@ -266,13 +284,19 @@ if (material.includes('angle bead') || material.includes('corner bead')) return 
 if (material.includes('joint tape')) return UK_GUIDE_RATES.joint_tape_m;
 if (material.includes('jointing compound')) return UK_GUIDE_RATES.jointing_compound_bag;
 if (material.includes('drywall screws')) return UK_GUIDE_RATES.drywall_screw;
+
 if (material.includes('total volume')) return UK_GUIDE_RATES.paint_litre;
 
-if (material.includes('5 litre tins') || material.includes('primer / mist coat')) {
+if (
+material.includes('5 litre tins') ||
+material.includes('5l tins') ||
+material.includes('paint (5l tins)') ||
+material.includes('primer / mist coat')
+) {
 return UK_GUIDE_RATES.paint_tin_5l;
 }
 
-if (material.includes('2.5 litre tins')) return null;
+if (material.includes('2.5 litre tins') || material.includes('2.5l tins')) return null;
 if (material.includes('roller')) return UK_GUIDE_RATES.roller_sleeve;
 if (material.includes('masking tape')) return UK_GUIDE_RATES.masking_tape_roll;
 if (material.includes('dust sheets')) return UK_GUIDE_RATES.dust_sheet;

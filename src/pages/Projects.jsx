@@ -156,7 +156,7 @@ export default function Projects() {
     try {
       const { error } = await supabase.from('projects').insert({
         user_id: user.id,
-        team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+       team_id: getSafeTeamId(sub, isCompanyPlan),
         name: newProject.name.trim(),
         calculator_type: newProject.calculator_type,
         notes: newProject.notes.trim() || null,

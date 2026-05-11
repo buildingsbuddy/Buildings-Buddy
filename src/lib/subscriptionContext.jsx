@@ -21,6 +21,40 @@ teamRole: null,
 isTeamOwner: false,
 };
 
+// TEMP TEST BYPASS — remove email before launch
+const DEV_BYPASS_EMAILS = [
+'n.hanson22015@yahoo.com',
+];
+
+function isDevBypassUser(user) {
+const email = String(user?.email || '').toLowerCase();
+return DEV_BYPASS_EMAILS.includes(email);
+}
+
+function getDevBypassState(user) {
+return {
+...emptyState,
+status: 'active',
+plan: 'company',
+billingCycle: 'yearly',
+trialEndDate: null,
+trialDaysLeft: 999,
+stripeCustomerId: null,
+stripeSubscriptionId: null,
+stripePriceId: null,
+currentPeriodEnd: null,
+team: {
+id: 'dev-team',
+name: user?.user_metadata?.company_name || 'Buildings Buddy Test Team',
+owner_id: user?.id,
+plan: 'company',
+max_users: COMPANY_MAX_USERS,
+},
+teamRole: 'owner',
+isTeamOwner: true,
+};
+}
+
 function calculateTrialDaysLeft(trialEndDate) {
 if (!trialEndDate) return 0;
 
@@ -137,7 +171,7 @@ created_at
 .maybeSingle();
 
 if (error && error.code !== 'PGRST116') {
-  console.error('Failed to load team membership:', error);
+console.error('Failed to load team membership:', error);
 }
 
 return data || null;
@@ -239,6 +273,12 @@ setSubState({
 status: 'no_subscription',
 });
 return null;
+}
+
+if (isDevBypassUser(user)) {
+const devState = getDevBypassState(user);
+setSubState(devState);
+return devState;
 }
 
 try {

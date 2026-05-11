@@ -64,6 +64,22 @@ const number = Number(String(value ?? '').replace(/,/g, ''));
 return Number.isFinite(number) ? number : 0;
 }
 
+function isValidUuid(value) {
+return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+String(value || '')
+);
+}
+
+function getSafeTeamId(sub, isCompanyPlan) {
+if (!isCompanyPlan) return null;
+
+const teamId = String(sub?.team?.id || '').trim();
+
+if (!teamId) return null;
+
+return isValidUuid(teamId) ? teamId : null;
+}
+
 function formatQuantity(value) {
 const number = Number(value);
 
@@ -191,23 +207,23 @@ return;
 grouped[key].quantity += toNumber(row.quantity);
 
 if (row.total !== undefined || grouped[key].total !== undefined) {
-grouped[key].total = toNumber(grouped[key].total) + toNumber(row.total);
+grouped[key].total =
+toNumber(grouped[key].total) + toNumber(row.total);
 }
 
-const currentNotes = grouped[key].notes || '';
-const nextNotes = row.notes || '';
-
-if (nextNotes && !currentNotes.includes(nextNotes)) {
-grouped[key].notes = currentNotes
-? `${currentNotes}; ${nextNotes}`
-: nextNotes;
+// merge notes (KEEP them, don't overwrite)
+if (row.notes && !grouped[key].notes.includes(row.notes)) {
+grouped[key].notes += grouped[key].notes
+? ` | ${row.notes}`
+: row.notes;
 }
 });
 
 return Object.values(grouped).map((row) => ({
 ...row,
 quantity: formatQuantity(row.quantity),
-total: row.total !== undefined ? Number(row.total.toFixed(2)) : row.total,
+total:
+row.total !== undefined ? Number(row.total.toFixed(2)) : row.total,
 }));
 }
 
@@ -324,11 +340,13 @@ const payload =
 typeof getSavePayload === 'function' ? getSavePayload() : null;
 
 setResults(calcResults);
+if (!estimateMode) {
 setIncludePricing(false);
+}
 
 if (estimateMode) {
 const label = `${title} ${estimateCounter}`;
-
+const priced = addPricing(calcResults);
 setEstimateItems((prev) => [
 ...prev,
 {
@@ -337,8 +355,8 @@ label,
 calculatorType: calcType || title,
 inputs: payload?.inputs || {},
 results: calcResults,
-pricingIncluded: false,
-pricingTotal: null,
+pricingIncluded: includePricing,
+pricingTotal: includePricing ? priced.total : null,
 },
 ]);
 
@@ -487,7 +505,7 @@ return null;
 
 const payload = {
 user_id: user.id,
-team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+team_id: getSafeTeamId(sub, isCompanyPlan),
 name: newProject.name.trim(),
 calculator_type: calcType || title,
 notes: newProject.notes.trim() || null,
@@ -559,7 +577,7 @@ const { error } = await supabase
 .from('calculations')
 .update({
 project_id: projectId,
-team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+team_id: getSafeTeamId(sub, isCompanyPlan),
 calculator_type: isMultiEstimate
 ? `${calcType || title}_multi_estimate`
 : calcType || title,
@@ -581,7 +599,7 @@ toast.success('Calculation updated.');
 const { error } = await supabase.from('calculations').insert({
 project_id: projectId,
 user_id: user.id,
-team_id: isCompanyPlan && sub.team?.id ? sub.team.id : null,
+team_id: getSafeTeamId(sub, isCompanyPlan),
 calculator_type: isMultiEstimate
 ? `${calcType || title}_multi_estimate`
 : calcType || title,
@@ -1011,7 +1029,10 @@ Estimate Builder
 
 <CardContent className="space-y-4">
 <div className="space-y-3">
-{estimateItems.map((item, index) => (
+{estimateItems.map((item, index) => {
+const itemPricingTotal = addPricing(item.results || []).total;
+
+return (
 <div
 key={item.id}
 className="rounded-xl border bg-card p-4 flex flex-col gap-3"
@@ -1040,14 +1061,15 @@ className="text-muted-foreground hover:text-destructive"
 Calculation {index + 1} · {item.calculatorType}
 </span>
 
-{item.pricingIncluded && item.pricingTotal !== null && (
+{includePricing && (
 <span className="font-semibold text-foreground">
-{money(item.pricingTotal)}
+{money(itemPricingTotal)}
 </span>
 )}
 </div>
 </div>
-))}
+);
+})}
 </div>
 
 <div className="rounded-xl border bg-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
