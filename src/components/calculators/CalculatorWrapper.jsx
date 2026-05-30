@@ -697,6 +697,7 @@ const html = `
 <title>${escapeHtml(title)}</title>
 <style>
 body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
+.back-button { display:inline-block; margin-bottom:18px; background:#1e2d4d; color:white; border:none; border-radius:8px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; }
 .brand { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e2d4d; padding-bottom:14px; margin-bottom:22px; }
 h1 { font-size:24px; margin:0 0 6px; }
 .sub { color:#666; font-size:13px; margin:0; }
@@ -711,9 +712,14 @@ td { padding:8px 12px; border-bottom:1px solid #e9e9e9; vertical-align:top; }
 tr:nth-child(even) td { background:#fafafa; }
 .section-row td { background:#edf2f7 !important; color:#1e2d4d; font-weight:700; border-top:18px solid white; border-bottom:1px solid #d8dee8; padding-top:10px; }
 .footer { margin-top:28px; padding-top:14px; border-top:1px solid #ddd; font-size:11px; color:#777; line-height:1.5; }
+@media print { .back-button { display:none; } }
 </style>
 </head>
 <body>
+<button onclick="history.back()" class="back-button">
+← Back to Calculator
+</button>
+
 <div class="brand">
 <div>
 <h1>${escapeHtml(isMultiEstimate ? `${title} Estimate` : title)}</h1>
@@ -764,10 +770,15 @@ if (!win) return;
 win.document.write(html);
 win.document.close();
 win.focus();
-win.print();
+
+setTimeout(() => {
+win.onafterprint = () => {
+win.close();
 };
 
-
+win.print();
+}, 250);
+};
 const saveButtonLabel =
 saveBehavior === 'update' ? 'Update Calculation' : 'Save Calculation';
 
